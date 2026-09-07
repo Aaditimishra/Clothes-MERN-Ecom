@@ -1,0 +1,79 @@
+/**
+ * Design tokens.
+ *
+ * Every colour, space and radius in the app resolves to something declared here.
+ * A component that hard-codes `#111` is a component that cannot be themed, and
+ * the dark palette below is the proof: it redefines these variables and nothing
+ * else changes.
+ */
+:root {
+  color-scheme: light;
+
+  /* Warm neutrals rather than pure grey — apparel photography sits badly on a
+     cold background, and every lookbook shot in the catalogue is warm-toned. */
+  --ink: #12100e;
+  --ink-2: #3d3733;
+  --ink-3: #6f6862;
+  --ink-4: #9c948d;
+
+  --paper: #ffffff;
+  --paper-2: #faf8f5;
+  --paper-3: #f2eee8;
+  --line: #e6e0d8;
+  --line-strong: #d3cabe;
+
+  --accent: #8f3d2f;
+  --accent-soft: #f6e9e4;
+  --accent-ink: #ffffff;
+
+  --sale: #a3231f;
+  --success: #2f6b45;
+  --warn: #8a5a12;
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(18 16 14 / 0.05);
+  --shadow: 0 4px 16px -4px rgb(18 16 14 / 0.1);
+  --shadow-lg: 0 18px 48px -18px rgb(18 16 14 / 0.28);
+
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* A serif for headings only. It is what stops the shop reading like a
+     dashboard — the difference between "product listing" and "lookbook". */
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+
+  --header-h: 60px;
+  --page-max: 1440px;
+  --gutter: clamp(16px, 4vw, 56px);
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ink: #f4f0ea;
+  --ink-2: #cdc5bc;
+  --ink-3: #9c938a;
+  --ink-4: #736b64;
+
+  --paper: #131110;
+  --paper-2: #1b1817;
+  --paper-3: #262220;
+  --line: #322d2a;
+  --line-strong: #443d39;
+
+  --accent: #e0a08f;
+  --accent-soft: #33221d;
+  --accent-ink: #1a1210;
+
+  --sale: #f08a86;
+  --success: #7fc79b;
+  --warn: #e2b464;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow: 0 4px 16px -4px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 18px 48px -18px rgb(0 0 0 / 0.75);
+}
