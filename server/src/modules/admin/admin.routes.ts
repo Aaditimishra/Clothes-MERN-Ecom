@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
-import { newId, slugify, PAYMENT_STATUSES } from '@shop/shared';
+import { newId, slugify, PAYMENT_STATUSES, type OrderStatus } from '@shop/shared';
 import { z } from 'zod';
 
 import { ApiError } from '../../lib/api-error';
@@ -20,6 +20,7 @@ import { deletePage, listPages, savePage } from '../content/content.service';
 import { deletePost, listAllPosts, savePost } from '../content/journal.service';
 import { BLOCK_TYPES } from '../../models/page.model';
 import { toOrderView } from '../order/order.view';
+import { applyStatusChangeToStock } from '../order/stock.service';
 import {
   rejectManualPayment,
   verifyManualPayment,
@@ -702,16 +703,50 @@ adminRouter.patch(
     const body = parseBody(req, orderPatchSchema);
 
     const id = idParam.parse(req.params.id);
-    const before = await OrderModel.findById(id).select('status').lean();
+    const before = await OrderModel.findById(id).lean();
+    if (!before) throw ApiError.notFound('No such order');
 
-    const updated = await OrderModel.findByIdAndUpdate(id, { $set: body }, { new: true }).lean();
+    // `restock` is an instruction, not a column. Stripped before the update so
+    // it cannot be written onto the order as a stray field.
+    const { restock, ...patch } = body;
+
+    const updated = await OrderModel.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
     if (!updated) throw ApiError.notFound('No such order');
 
-    const view = toOrderView(updated as OrderDoc);
+    const isTransition = Boolean(body.status) && before.status !== updated.status;
+
+    /**
+     * Ending an order gives its stock back.
+     *
+     * This ran nowhere before: cancelling an order left its units reserved for
+     * good, so a cancelled order for three shirts took three shirts off sale
+     * permanently. Nothing failed and nothing was logged — the number was simply
+     * wrong, and stayed wrong until somebody counted the shelf.
+     *
+     * Awaited rather than fired off, because the response carries the order and
+     * the client refreshes stock from it. Releasing after the reply would show
+     * the merchant the old number and make a correct release look like a
+     * no-op they should try again.
+     */
+    let released = false;
+    if (isTransition) {
+      released = await applyStatusChangeToStock({
+        order: updated as OrderDoc,
+        from: before.status as OrderStatus,
+        to: updated.status as OrderStatus,
+        ...(restock === undefined ? {} : { restock }),
+      });
+    }
+
+    const view = toOrderView(
+      released
+        ? ((await OrderModel.findById(id).lean()) as OrderDoc)
+        : (updated as OrderDoc),
+    );
 
     // Only a real status transition emails the shopper. Saving a tracking number
     // must not send "your order has shipped" a second time.
-    if (body.status && before && before.status !== body.status) {
+    if (isTransition) {
       void onOrderStatusChanged(view, (updated as OrderDoc).email);
     }
 

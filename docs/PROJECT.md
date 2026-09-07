@@ -48,7 +48,7 @@ Full admin walkthrough: [ADMIN-GUIDE.md](./ADMIN-GUIDE.md)
 | `npm run seed` | Wipes and rebuilds the demo shop |
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
-| `npm run smoke` | 325 end-to-end checks against a live, freshly seeded server |
+| `npm run smoke` | 336 end-to-end checks against a live, freshly seeded server |
 | `npm run build` | Server bundle + both client builds |
 
 ---
@@ -163,6 +163,23 @@ above it. Two shoppers buying the last shirt both pass a read-then-check; here t
 second `updateOne` matches nothing and the caller rolls back every earlier
 reservation. Without a replica set there are no transactions, so the compensating
 release *is* the guarantee.
+
+**Ending an order gives its stock back — once, and only from the shelf.**
+Stock is reserved when the order is written, so every path that ends one has to
+return it: an admin cancelling, the sweeper expiring an unpaid order, a return
+coming back in. Cancelling used to credit *nothing*, which took three shirts off
+sale permanently and silently — nothing failed, the number was simply wrong.
+Three callers each crediting the same units is the opposite failure and just as
+quiet, so there is one release and it is guarded by `stockReleasedAt: null` **in
+the update filter**, not by a check above it.
+
+**Cancelling only restocks before dispatch.** A `packed` order's goods are in the
+building; a `shipped` order's are on a van, and putting those back on sale sells
+the same garment twice. They return through a return.
+
+**A return does not restock on its own.** The goods are physically back, but a
+worn or damaged garment going straight onto the shelf is worse than one sitting
+in a box, so it takes the merchant saying they have looked at it.
 
 **Facets are counted against every filter except their own.** Selecting "Black"
 must not collapse the colour list to one option — the shopper could never widen
@@ -447,7 +464,7 @@ Seeded: 21 products · 77 vocabulary terms · 11 categories · 4 size charts ·
 | `npm run typecheck` | **0 errors** across 4 workspaces |
 | `npm run lint` | **0 errors** (warnings are intentional non-null assertions) |
 | `npm run build` | Passes — server bundle, shop, admin |
-| `npm run smoke` | **325 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
+| `npm run smoke` | **336 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
 | Bugs found and fixed | **27**, each with a regression test — see [BUGS-FIXED.md](./BUGS-FIXED.md) |
 | Seed | 20 products · 195 variants · 76 vocabulary terms · 4 size charts · 42 images · 130 reviews · 5 content pages · 3 journal entries · a seeded notification feed and outbox |
 

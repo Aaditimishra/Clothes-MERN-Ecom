@@ -7,7 +7,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server.ts",
-    "dev:test": "CREDENTIAL_RATE_LIMIT=500 tsx watch --clear-screen=false src/server.ts",
+    "dev:test": "CREDENTIAL_RATE_LIMIT=500 GLOBAL_RATE_LIMIT=5000 tsx watch --clear-screen=false src/server.ts",
     "start": "node dist/server.js",
     "build": "tsup",
     "seed": "tsx src/seed/run-seed.ts",

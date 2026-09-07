@@ -8,7 +8,7 @@ npm run dev:test                #              servers, credential limit raised
 npm run smoke                   # terminal 2 — run ONCE
 ```
 
-**325 checks, 0 failures.**
+**336 checks, 0 failures.**
 
 ### Why `dev:test` and not `dev`
 
@@ -16,8 +16,8 @@ The suite exercises every credential path on purpose — sign-in, sign-up, both
 password-reset endpoints, a dozen staff sessions. That is far more than the
 production limit of ten attempts per fifteen minutes allows, and rightly so.
 
-`npm run dev:test` starts the API with `CREDENTIAL_RATE_LIMIT=500`. Nothing else
-changes. The alternative was trimming the tests to fit a production number,
+`npm run dev:test` starts the API with `CREDENTIAL_RATE_LIMIT=500` and
+`GLOBAL_RATE_LIMIT=5000`. Nothing else changes. The alternative was trimming the tests to fit a production number,
 which would have meant testing less than the app does.
 
 The limit is asserted from both directions: the suite reads the draft-7
@@ -27,12 +27,13 @@ still ten.
 
 ### Run it once per restart
 
-The suite makes roughly 300 requests, which trips the global limiter on a second
-run:
+The suite makes roughly 350 requests. `dev:test` raises the global limit as well
+as the credential one — the limiter is sized for a person browsing, and the suite
+walks every path in the shop in about a minute, which is not browsing:
 
 | Limiter | Allows | Applies to |
 | --- | --- | --- |
-| Global | 300 requests / minute | everything |
+| Global | 300 requests / minute (5000 under `dev:test`) | everything |
 | Credential | 10 attempts / 15 minutes (500 under `dev:test`) | sign-in, sign-up, password reset |
 
 Both are in-memory, so restarting the API clears them. The suite detects a 429
@@ -58,6 +59,7 @@ Several assertions also depend on known stock levels, so reseed first.
 | 10 | Checkout | Validation, stock decrement, bag clearing, guest lookup by email, COD surcharge, address auto-save + dedupe |
 | 11 | Reviews | Summary agrees with the card, duplicate rejection, rating recalculation, name abbreviation |
 | 12 | Admin auth | Customer tokens rejected, per-role permission enforcement |
+| 22 | Stock on ending an order | Cancelling restocks and cannot restock twice; a shipped cancel does not; a return restocks only when the merchant says so |
 | 21 | Paying | The whole manual lifecycle — claim, send back, re-claim, verify — plus the refusals: an analyst cannot confirm money, a cancelled order cannot be marked paid, verifying twice is a no-op, an unsigned webhook is rejected |
 | 13 | Admin catalogue | Taxonomy CRUD, product create/update, **variant reconciliation**, publish, archive |
 | 14 | Media, coupons, orders, settings | Usage guards, coupon lifecycle, order status reaching the shopper, **partial settings saves** |

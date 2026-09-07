@@ -20,6 +20,15 @@ const schema = z.object({
    * than the suite being trimmed to fit a production number.
    */
   CREDENTIAL_RATE_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),
+  /**
+   * Requests allowed per IP per minute, across everything.
+   *
+   * Sized for browsing: a shopper loading a listing fires a handful per page.
+   * The smoke suite is not browsing — it walks every path in the shop in about
+   * a minute — so it raises this rather than the suite being trimmed to fit a
+   * number that exists to describe a person.
+   */
+  GLOBAL_RATE_LIMIT: z.coerce.number().int().min(1).max(100_000).default(300),
   MONGODB_URI: z.string().min(1).default('mongodb://127.0.0.1:27017/threadline'),
   /**
    * Rejected below 32 characters on purpose: a short secret is brute-forceable,

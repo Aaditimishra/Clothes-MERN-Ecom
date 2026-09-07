@@ -143,6 +143,17 @@ export const orderPatchSchema = z.object({
   status: z.enum(ORDER_STATUSES).optional(),
   paymentStatus: z.enum(PAYMENT_STATUSES).optional(),
   trackingNumber: z.string().trim().max(80).nullish().transform((v) => v || null),
+  /**
+   * Put a returned order's goods back on sale.
+   *
+   * Only meaningful alongside `status: 'returned'`, and absent means no. A worn
+   * or damaged garment going straight back on sale is worse than one sitting in
+   * a box until somebody looks at it, so this is the merchant saying they have.
+   *
+   * Cancellations need no such flag: goods that never shipped are by definition
+   * still sellable.
+   */
+  restock: z.boolean().optional(),
 });
 
 export const staffSchema = z.object({

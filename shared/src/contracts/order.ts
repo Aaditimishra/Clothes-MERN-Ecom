@@ -61,13 +61,24 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const SETTLED_PAYMENT_STATUSES = ['paid', 'refunded'] as const;
 
 /**
- * Order states that have released their stock.
+ * Order states that must never be paid.
  *
- * Accepting money against one of these sells goods that are back on the shelf,
- * and then reports the revenue on the dashboard. The rule lives here, once, so
- * that the manual verifier and the gateway callback cannot disagree about it.
+ * Accepting money against one of these sells goods the shop is no longer
+ * shipping, and then reports the revenue on the dashboard. The rule lives here,
+ * once, so that the manual verifier and the gateway callback cannot disagree.
  */
 export const STOCK_RELEASED_ORDER_STATUSES = ['cancelled', 'returned'] as const;
+
+/**
+ * Order states in which the goods are still on the shop's own shelves.
+ *
+ * This is what decides whether cancelling gives the stock back. Cancelling a
+ * `packed` order returns three shirts to sale, because they are in the building.
+ * Cancelling a `shipped` one must NOT — those shirts are on a van, and putting
+ * them back on sale sells the same garment twice. They return through a return,
+ * once someone has them in their hands again.
+ */
+export const PRE_DISPATCH_ORDER_STATUSES = ['pending', 'confirmed', 'packed'] as const;
 
 export interface Address {
   fullName: string;
@@ -112,6 +123,15 @@ export interface OrderView {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   payment: OrderPaymentView;
+  /**
+   * When this order's reserved stock went back on sale, if it ever did.
+   *
+   * On the order rather than inferred from the status, because the question is
+   * "has this already happened" and a status can be reached twice. It is what
+   * stops a cancel, a sweep and a second cancel from returning the same three
+   * shirts to sale three times.
+   */
+  stockReleasedAt: string | null;
   /** Set once shipped. */
   trackingNumber: string | null;
   estimatedDelivery: string | null;

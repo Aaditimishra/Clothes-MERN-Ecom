@@ -941,6 +941,77 @@ check('a CANCELLED order cannot be marked paid', s == 422 and 'cancelled' in d['
 s, d = call('POST', '/payments/webhook/razorpay', {'event': 'payment.captured'})
 check('an unsigned webhook is refused', s == 401, s)
 
+section('22. Ending an order gives its stock back')
+
+def _stock(slug, vid):
+    _, pr = call('GET', f'/catalog/products/{slug}')
+    return next(x for x in pr['variants'] if x['id'] == vid)['stockQuantity']
+
+SLUG = 'oxford-button-down-shirt'
+s, sp = call('GET', f'/catalog/products/{SLUG}')
+svar = next(x for x in sp['variants'] if x['isAvailable'] and x['stockQuantity'] >= 6)
+SVID = svar['id']
+
+def _place(qty, method='cod'):
+    _, bag = call('POST', '/cart/items', {'variantId': SVID, 'quantity': qty}, token=TOK)
+    st, pl = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod': method},
+                  token=TOK, cart=bag['id'])
+    return must(f'order placed ({method}, {qty})', st, pl)['order']
+
+def _patch(oid, patch):
+    return call('PATCH', f'/admin/orders/{oid}', patch, token=ATOK)
+
+# Cancelling before dispatch: the goods never left, so they go back.
+base = _stock(SLUG, SVID)
+o = _place(3)
+held = _stock(SLUG, SVID)
+check('stock is reserved at checkout', held == base - 3, f'{base} → {held}')
+check('a live order has not released its stock', o['stockReleasedAt'] is None)
+st, cancelled = _patch(o['id'], {'status': 'cancelled'})
+back = _stock(SLUG, SVID)
+check('cancelling records the release', cancelled['stockReleasedAt'] is not None, cancelled['stockReleasedAt'])
+check('cancelling puts the goods back on sale', back == base, f'expected {base}, got {back}')
+
+# The bug this section exists for: it used to credit nothing at all, and now it
+# must not credit twice either.
+_patch(o['id'], {'status': 'pending'})
+_patch(o['id'], {'status': 'cancelled'})
+twice = _stock(SLUG, SVID)
+check('re-cancelling never credits a second time', twice == base, f'expected {base}, got {twice}')
+
+# Cancelling AFTER dispatch must not restock: those garments are on a van, and
+# putting them back on sale sells the same one twice.
+base2 = _stock(SLUG, SVID)
+o2 = _place(2)
+_patch(o2['id'], {'status': 'shipped'})
+st, shipped_cancel = _patch(o2['id'], {'status': 'cancelled'})
+after2 = _stock(SLUG, SVID)
+check('cancelling a SHIPPED order does not restock', after2 == base2 - 2,
+      f'expected {base2 - 2}, got {after2}')
+check('and it is not marked released', shipped_cancel['stockReleasedAt'] is None)
+
+# A return is the merchant's call: goods are back, but a worn garment going
+# straight onto the shelf is worse than one sitting in a box.
+base3 = _stock(SLUG, SVID)
+o3 = _place(2)
+_patch(o3['id'], {'status': 'delivered'})
+_patch(o3['id'], {'status': 'returned'})
+after3 = _stock(SLUG, SVID)
+check('a return does not restock on its own', after3 == base3 - 2,
+      f'expected {base3 - 2}, got {after3}')
+
+base4 = _stock(SLUG, SVID)
+o4 = _place(2)
+_patch(o4['id'], {'status': 'delivered'})
+st, restocked = _patch(o4['id'], {'status': 'returned', 'restock': True})
+after4 = _stock(SLUG, SVID)
+check('a return restocks when the merchant says so', after4 == base4,
+      f'expected {base4}, got {after4}')
+check('the restock is recorded on the order', restocked['stockReleasedAt'] is not None)
+
+# `restock` is an instruction, not a column.
+check('restock is not written onto the order', 'restock' not in restocked, list(restocked)[:12])
+
 print(f'\n{"="*62}\n  PASSED {passed}   FAILED {failed}\n{"="*62}')
 for f in FAILS: print('  ✗', f)
 

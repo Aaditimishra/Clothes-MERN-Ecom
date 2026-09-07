@@ -30,7 +30,7 @@ npm run dev            # API :4000 · shop :5173 · admin :5174
 | [docs/PROJECT.md](docs/PROJECT.md) | Architecture, every decision and its reason, API, data model |
 | [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) | What a merchant can change, and where |
 | [docs/BUGS-FIXED.md](docs/BUGS-FIXED.md) | The 27 bugs found while building, with root causes |
-| [docs/TESTING.md](docs/TESTING.md) | How to run the 325-check suite and what it covers |
+| [docs/TESTING.md](docs/TESTING.md) | How to run the 336-check suite and what it covers |
 
 You need MongoDB running locally (`brew services start mongodb-community`) or any
 `MONGODB_URI`.
@@ -47,7 +47,7 @@ You need MongoDB running locally (`brew services start mongodb-community`) or an
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
 | `npm run build` | Server bundle + both client builds |
-| `npm run smoke` | 325 end-to-end checks against a live, seeded server |
+| `npm run smoke` | 336 end-to-end checks against a live, seeded server |
 
 ---
 
@@ -95,6 +95,11 @@ number in the bag is the number charged.
 **An order line is a snapshot.** Name, size, colour and price are copied at
 purchase. A line that joins back to the live product silently rewrites history the
 moment the merchant renames or repriced something.
+
+**Ending an order gives its stock back, once.** Cancelling, expiring and
+restocking a return all go through one guarded release, so three callers cannot
+credit the same units — and cancelling a *shipped* order deliberately does not
+restock, because those garments are on a van.
 
 **Stock is reserved with the quantity guard in the query filter**, not in an `if`
 above it. Two shoppers buying the last shirt both pass a read-then-check; here the

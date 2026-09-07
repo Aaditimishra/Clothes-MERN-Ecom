@@ -116,6 +116,14 @@ const orderSchema = new Schema(
     paymentMethod: { type: String, required: true },
     paymentStatus: { type: String, required: true, default: 'pending', index: true },
     payment: { type: orderPaymentSchema, required: true, default: () => ({}) },
+    /**
+     * When the reserved stock went back on sale. Null while it is still held.
+     *
+     * The releasing update matches on this being null, so whichever caller gets
+     * there first does the work and the rest find nothing to do. That is the
+     * whole guard against a cancel and a sweep both crediting the same units.
+     */
+    stockReleasedAt: { type: Date, default: null },
     trackingNumber: { type: String, default: null },
     estimatedDelivery: { type: Date, default: null },
     placedAt: { type: Date, required: true, default: () => new Date() },

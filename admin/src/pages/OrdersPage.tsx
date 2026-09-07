@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ORDER_STATUSES, PAYMENT_STATUSES, type OrderView } from '@shop/shared';
+import {
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
+  PRE_DISPATCH_ORDER_STATUSES,
+  type OrderView,
+} from '@shop/shared';
 
 import { Badge, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
 import { api, downloadCsv, query } from '../lib/api';
@@ -8,6 +13,25 @@ import { formatDate, formatMoney } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { Paged } from '../lib/types';
+
+/**
+ * What the status dropdown is about to do to stock, said before it does it.
+ *
+ * Cancelling an order that has not shipped puts the goods back; cancelling one
+ * that has must not, because they are on a van. Neither is guessable from a
+ * dropdown, and a merchant who cancels a shipped order expecting a credit will
+ * otherwise go looking for the stock that never appeared.
+ */
+const stockHint = (order: OrderView): string | undefined => {
+  if (order.stockReleasedAt) return 'Stock for this order is already back on sale.';
+  if (PRE_DISPATCH_ORDER_STATUSES.includes(order.status as 'pending')) {
+    return 'Cancelling returns these items to sale.';
+  }
+  if (order.status === 'shipped' || order.status === 'delivered') {
+    return 'Already dispatched — cancelling will not restock. Mark it returned once the goods are back.';
+  }
+  return undefined;
+};
 
 export const OrdersPage = () => {
   const { can } = useSession();
@@ -30,12 +54,23 @@ export const OrdersPage = () => {
   const update = useMutation({
     mutationFn: (input: { id: string; patch: Record<string, unknown> }) =>
       api<OrderView>(`/orders/${input.id}`, { method: 'PATCH', body: input.patch }),
-    onSuccess: (order) => {
+    onSuccess: (order, input) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      // Stock may have moved, and the products screen is where it is read.
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
+      const wasHeld = open?.stockReleasedAt === null;
       setOpen(order);
       setTracking(order.trackingNumber ?? '');
-      notify('Order updated');
+      /*
+        Says what happened to the stock, because that is the part a merchant
+        cannot see from this screen and would otherwise have to go and check.
+      */
+      notify(
+        input.patch.status && wasHeld && order.stockReleasedAt
+          ? `Order updated · ${order.itemCount} item(s) back on sale`
+          : 'Order updated',
+      );
     },
     onError: (error: unknown) =>
       notify(error instanceof Error ? error.message : 'Could not update', 'error'),
@@ -163,14 +198,33 @@ export const OrdersPage = () => {
           wide
         >
           <div className="grid-3">
-            <Field label="Status">
+            <Field label="Status" hint={stockHint(open)}>
               <select
                 className="select"
                 value={open.status}
                 disabled={!canManage || update.isPending}
-                onChange={(event) =>
-                  update.mutate({ id: open.id, patch: { status: event.target.value } })
-                }
+                onChange={(event) => {
+                  const next = event.target.value;
+                  /*
+                    A return is the one transition with a decision attached, and
+                    it is asked before it happens rather than offered as an undo:
+                    a worn garment quietly put back on sale is sold again before
+                    anyone notices.
+                  */
+                  const restock =
+                    next === 'returned' && open.stockReleasedAt === null
+                      ? window.confirm(
+                          `Put these ${open.itemCount} item(s) back on sale?\n\n` +
+                            'Only if you have the goods back and they are sellable. ' +
+                            'Cancel to mark it returned without restocking.',
+                        )
+                      : undefined;
+
+                  update.mutate({
+                    id: open.id,
+                    patch: { status: next, ...(restock === undefined ? {} : { restock }) },
+                  });
+                }}
               >
                 {ORDER_STATUSES.map((value) => (
                   <option key={value} value={value}>

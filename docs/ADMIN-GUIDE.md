@@ -340,6 +340,32 @@ apart cannot measure the fit problem causing them.
 
 ---
 
+### Cancelling, returns and stock
+
+Changing an order's status is what moves its stock, and the dropdown says what
+it is about to do before you touch it.
+
+| You change it to | What happens to stock |
+| --- | --- |
+| **Cancelled**, before it shipped | The items go straight back on sale |
+| **Cancelled**, after it shipped | Nothing. Those goods are on a van — putting them back on sale sells the same garment twice. Mark it **returned** once you have them |
+| **Returned** | You are asked. Say yes only if the goods are back and sellable |
+
+A return does not restock on its own on purpose: a worn or damaged garment going
+straight onto the shelf is worse than one sitting in a box until somebody looks
+at it. If you say no and it turns out to be fine, put it back from **Products →
+Stock**.
+
+Stock is only ever returned **once** per order, whatever you do to the status
+afterwards. Cancelling twice, or cancelling something the expiry sweeper already
+released, credits nothing extra.
+
+**Unpaid orders release themselves.** An order awaiting a bank transfer holds its
+stock for 24 hours, then cancels and gives it back without anyone touching it.
+See **Payments**.
+
+---
+
 ## Coupons
 
 Two kinds: a percentage or a fixed amount.

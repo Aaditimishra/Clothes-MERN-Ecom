@@ -95,7 +95,7 @@ export const createApp = (): Express => {
       windowMs: 60 * 1000,
       // Sized for browsing: a shopper loading a listing fires a handful of
       // requests per page. Credential routes set their own, far tighter limit.
-      limit: 300,
+      limit: env.GLOBAL_RATE_LIMIT,
       standardHeaders: 'draft-7',
       legacyHeaders: false,
     }),

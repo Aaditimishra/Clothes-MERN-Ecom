@@ -57,6 +57,7 @@ export const toOrderView = (order: OrderDoc): OrderView => ({
     gatewayPaymentId: order.payment?.gatewayPaymentId ?? null,
     expiresAt: order.payment?.expiresAt?.toISOString() ?? null,
   },
+  stockReleasedAt: order.stockReleasedAt?.toISOString() ?? null,
   trackingNumber: order.trackingNumber ?? null,
   estimatedDelivery: order.estimatedDelivery?.toISOString() ?? null,
   placedAt: order.placedAt.toISOString(),

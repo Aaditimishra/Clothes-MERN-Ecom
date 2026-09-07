@@ -23,10 +23,10 @@ import {
   verifyCheckoutSignature,
 } from '../../lib/payments/razorpay';
 import { OrderModel, type OrderDoc } from '../../models/order.model';
-import { ProductModel } from '../../models/product.model';
 import { getSettings } from '../settings/settings.service';
 import { notifyStaff } from '../notification/notification.service';
 import { toOrderView } from '../order/order.view';
+import { releaseOrderStock } from '../order/stock.service';
 
 /**
  * What happens to an order between "placed" and "paid".
@@ -498,16 +498,17 @@ export const sweepExpiredPayments = async (): Promise<number> => {
 
     if (!claimed) continue;
 
-    // Stock goes back only once, and only for the sweep that won the update.
-    for (const line of order.lines) {
-      await ProductModel.updateOne(
-        { 'variants.id': line.variantId },
-        { $inc: { 'variants.$.stockQuantity': line.quantity } },
-      );
-    }
+    /**
+     * Through the shared release, not a loop of its own.
+     *
+     * This used to credit the variants inline, which was correct on its own and
+     * wrong beside the admin cancel added since — a sweep and a cancel landing
+     * together would each return the same units. The release is guarded on the
+     * order, so whichever arrives second finds the work already done.
+     */
+    await releaseOrderStock(order, 'expired');
 
     swept += 1;
-    console.info(`[payment] released stock for unpaid order ${order.reference}`);
   }
 
   return swept;
