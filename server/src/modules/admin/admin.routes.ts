@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
-import { newId, slugify } from '@shop/shared';
+import { newId, slugify, PAYMENT_STATUSES } from '@shop/shared';
 import { z } from 'zod';
 
 import { ApiError } from '../../lib/api-error';
@@ -19,7 +19,11 @@ import { toSizeChartView } from '../catalog/size-chart.service';
 import { deletePage, listPages, savePage } from '../content/content.service';
 import { deletePost, listAllPosts, savePost } from '../content/journal.service';
 import { BLOCK_TYPES } from '../../models/page.model';
-import { toOrderView } from '../order/order.service';
+import { toOrderView } from '../order/order.view';
+import {
+  rejectManualPayment,
+  verifyManualPayment,
+} from '../payment/payment.service';
 import { deleteMedia, listMedia, mediaUsage, updateMedia, uploadImage } from '../media/media.service';
 import { env } from '../../config/env';
 import { completePasswordReset, requestPasswordReset } from '../auth/reset.service';
@@ -712,6 +716,118 @@ adminRouter.patch(
     }
 
     res.json(view);
+  }),
+);
+
+/* -------------------------------- payments ------------------------------- */
+
+/**
+ * The payment queue: what is waiting on a human.
+ *
+ * Defaults to `verifying` — the shoppers who say they have paid and are waiting
+ * on the shop to look — because that is the only state where someone is blocked
+ * on staff action. The other states are reachable by filter for reconciliation.
+ */
+adminRouter.get(
+  '/payments',
+  requirePermission('order.view'),
+  asyncHandler(async (req, res) => {
+    const query = parseQuery(
+      req,
+      pageQuerySchema.extend({
+        paymentStatus: z.enum(PAYMENT_STATUSES).optional(),
+      }),
+    );
+
+    const filter: Record<string, unknown> = {
+      paymentStatus: query.paymentStatus ?? 'verifying',
+    };
+
+    if (query.search) {
+      filter.$or = [
+        { reference: query.search.toUpperCase() },
+        { email: { $regex: query.search, $options: 'i' } },
+        { 'payment.reference': query.search.toUpperCase() },
+      ];
+    }
+
+    const [items, total, counts] = await Promise.all([
+      OrderModel.find(filter)
+        .sort({ 'payment.claimedAt': -1, placedAt: -1, _id: 1 })
+        .skip((query.page - 1) * query.pageSize)
+        .limit(query.pageSize)
+        .lean(),
+      OrderModel.countDocuments(filter),
+      // One grouped count rather than a query per tab: the tab bar needs every
+      // number on every render, and five round trips to draw five badges is
+      // five chances for them to disagree with each other.
+      OrderModel.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: '$paymentStatus', count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    res.json({
+      items: (items as OrderDoc[]).map(toOrderView),
+      total,
+      page: query.page,
+      pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
+      counts: Object.fromEntries(counts.map((row) => [row._id, row.count])),
+    });
+  }),
+);
+
+/**
+ * "I have found this money on the statement."
+ *
+ * Gated on `payment.verify` rather than `order.manage`: declaring a transfer
+ * received is the one action in this panel that cannot be undone by editing a
+ * field back, and it must not come free with the permission to type a tracking
+ * number.
+ */
+adminRouter.post(
+  '/payments/:id/verify',
+  requirePermission('payment.verify'),
+  asyncHandler(async (req, res) => {
+    const staff = staffOf(req);
+    res.json(
+      await verifyManualPayment({
+        orderId: idParam.parse(req.params.id),
+        staffName: staff.name,
+      }),
+    );
+  }),
+);
+
+/**
+ * The money was not there. The claim goes back with a reason the shopper reads.
+ *
+ * A reason is required rather than optional. "Rejected" with no explanation
+ * produces a support call every single time, and the person rejecting it is the
+ * one who knows why.
+ */
+adminRouter.post(
+  '/payments/:id/reject',
+  requirePermission('payment.verify'),
+  asyncHandler(async (req, res) => {
+    const staff = staffOf(req);
+    const body = parseBody(
+      req,
+      z.object({
+        reason: z
+          .string()
+          .trim()
+          .min(4, 'Say what was wrong, so the shopper can fix it')
+          .max(280),
+      }),
+    );
+
+    res.json(
+      await rejectManualPayment({
+        orderId: idParam.parse(req.params.id),
+        reason: body.reason,
+        staffName: staff.name,
+      }),
+    );
   }),
 );
 

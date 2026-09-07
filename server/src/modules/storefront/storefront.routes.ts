@@ -1,6 +1,8 @@
 import { Router } from 'express';
 
 import { asyncHandler } from '../../lib/async-handler';
+import { availablePaymentOptions } from '../../lib/payments/policy';
+import { toPublicSettings } from '../settings/settings.service';
 import { parseQuery } from '../../lib/validate';
 import { getSettings } from '../settings/settings.service';
 import { groupedTaxonomy } from '../taxonomy/taxonomy.service';
@@ -33,7 +35,19 @@ storefrontRouter.get(
     // Express already sends an ETag, so an unchanged bootstrap costs a 304 and
     // no body — nearly as cheap as the timed cache, and never wrong.
     res.set('Cache-Control', 'no-cache');
-    res.json({ settings, taxonomy, footer });
+    res.json({
+      settings: toPublicSettings(settings),
+      taxonomy,
+      footer,
+      /**
+       * Which ways to pay this shop can actually honour.
+       *
+       * Sent from here rather than hardcoded in the storefront because the
+       * answer depends on settings and on whether gateway keys exist in the
+       * environment — which a browser cannot know and must not be told.
+       */
+      paymentOptions: availablePaymentOptions(settings),
+    });
   }),
 );
 

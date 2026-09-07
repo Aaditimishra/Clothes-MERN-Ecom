@@ -47,6 +47,9 @@ export const EmailModel = model('Email', emailSchema);
 export const NOTIFICATION_TYPES = [
   'order.placed',
   'order.cancelled',
+  'payment.claimed',
+  'payment.received',
+  'payment.failed',
   'stock.low',
   'stock.out',
   'review.posted',

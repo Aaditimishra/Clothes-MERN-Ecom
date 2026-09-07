@@ -15,6 +15,7 @@ import { cartRouter } from './modules/cart/cart.routes';
 import { catalogRouter } from './modules/catalog/catalog.routes';
 import { customerRouter } from './modules/customer/customer.routes';
 import { orderRouter } from './modules/order/order.routes';
+import { paymentRouter, paymentWebhookRouter } from './modules/payment/payment.routes';
 import { reviewRouter } from './modules/review/review.routes';
 import { adminRouter } from './modules/admin/admin.routes';
 import { storefrontRouter } from './modules/storefront/storefront.routes';
@@ -50,6 +51,20 @@ export const createApp = (): Express => {
       allowedHeaders: ['Content-Type', 'Authorization', 'x-cart-id'],
     }),
   );
+  /**
+   * The gateway webhook is mounted BEFORE the JSON parser, deliberately.
+   *
+   * Its signature is computed over the exact bytes Razorpay sent, and
+   * `express.json` marks a request as parsed — after which the route's own
+   * `raw()` silently does nothing and hands back a re-serialised object whose
+   * digest can never match. Moving this line below the parser rejects every
+   * genuine webhook as a forgery, which presents as payments never confirming.
+   *
+   * It also sits above the rate limiter: a burst of retries from the gateway
+   * must not be throttled as though it were a shopper refreshing.
+   */
+  app.use('/api/payments/webhook', paymentWebhookRouter);
+
   // A 100 kB body is generous for the largest thing this API accepts (a review).
   // The default of 100 kB is kept explicit so raising it is a decision, not a
   // side effect of someone reaching for a bigger payload.
@@ -113,6 +128,7 @@ export const createApp = (): Express => {
   app.use('/api/account', customerRouter);
   app.use('/api/products', reviewRouter);
   app.use('/api', orderRouter);
+  app.use('/api', paymentRouter);
 
   // Mounted last, and behind its own authentication. Nothing above this line
   // knows the admin exists.

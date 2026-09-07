@@ -33,6 +33,34 @@ const schema = z.object({
   JWT_EXPIRES_IN: z.string().default('7d'),
   /** Comma-separated list of origins allowed to call the API. */
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+
+  /**
+   * Razorpay credentials. Optional, and absent by design until the shop has an
+   * account.
+   *
+   * They are environment secrets rather than settings rows because an admin
+   * session must never be able to read the key that signs refunds. The shop
+   * runs on manual transfers without them; supplying them is what makes the
+   * gateway available to be switched on.
+   */
+  RAZORPAY_KEY_ID: z.string().trim().default(''),
+  RAZORPAY_KEY_SECRET: z.string().trim().default(''),
+  /**
+   * Verifies the webhook body's signature. Distinct from the key secret because
+   * Razorpay signs webhooks with its own value, and an unverified webhook is an
+   * open endpoint that marks any order paid on request.
+   */
+  RAZORPAY_WEBHOOK_SECRET: z.string().trim().default(''),
+
+  /**
+   * How long an unpaid order holds its stock, in hours.
+   *
+   * Stock is reserved the moment the order is written, so an abandoned transfer
+   * takes a garment off sale until something takes it back. Twenty-four hours
+   * is long enough for someone who pays from a different device in the evening
+   * and short enough that a size does not sit dead for a week.
+   */
+  PAYMENT_WINDOW_HOURS: z.coerce.number().int().min(1).max(720).default(24),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -52,10 +80,28 @@ if (raw.NODE_ENV === 'production' && raw.JWT_SECRET.startsWith('dev-only-secret'
   process.exit(1);
 }
 
+/**
+ * A gateway is CONFIGURED when both halves of the key pair are present.
+ *
+ * Checked as a pair rather than individually: a key id with no secret produces
+ * a checkout the shopper can open and the server can never verify, which takes
+ * their money and loses the order.
+ */
+const razorpayConfigured = Boolean(raw.RAZORPAY_KEY_ID && raw.RAZORPAY_KEY_SECRET);
+
+if (raw.NODE_ENV === 'production' && razorpayConfigured && !raw.RAZORPAY_WEBHOOK_SECRET) {
+  console.warn(
+    'Razorpay is configured without RAZORPAY_WEBHOOK_SECRET. Payments will be ' +
+      'confirmed from the browser handoff only, so a shopper who closes the tab ' +
+      'after paying leaves the order unconfirmed until someone checks by hand.',
+  );
+}
+
 export const env = {
   ...raw,
   isProduction: raw.NODE_ENV === 'production',
   corsOrigins: raw.CORS_ORIGINS.split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+  razorpayConfigured,
 } as const;

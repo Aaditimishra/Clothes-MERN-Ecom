@@ -17,6 +17,17 @@ export const PERMISSIONS = [
   'inventory.manage',
   'order.view',
   'order.manage',
+  /**
+   * Confirming that money has actually arrived.
+   *
+   * Separate from `order.manage` for the same reason `data.export` is separate
+   * from `customer.view`: editing a tracking number and declaring a ₹40,000
+   * transfer received are different acts with different consequences. Marking
+   * an unpaid order paid ships goods for nothing and books revenue that does
+   * not exist, and it is the one thing in this panel that cannot be undone by
+   * editing a field back.
+   */
+  'payment.verify',
   'customer.view',
   'promotion.manage',
   'review.moderate',
@@ -48,7 +59,14 @@ export const ROLE_PRESETS: Record<string, readonly Permission[]> = {
     'review.moderate',
     'cms.manage',
   ],
-  operations: ['catalog.view', 'inventory.manage', 'order.view', 'order.manage', 'customer.view'],
+  operations: [
+    'catalog.view',
+    'inventory.manage',
+    'order.view',
+    'order.manage',
+    'payment.verify',
+    'customer.view',
+  ],
   support: ['catalog.view', 'order.view', 'customer.view', 'review.moderate'],
   // `owner` gets `data.export` through the full list above; the other presets
   // do not, and it is granted per person rather than baked into a role.

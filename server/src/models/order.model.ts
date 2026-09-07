@@ -64,6 +64,42 @@ const totalsSchema = new Schema(
   { _id: false },
 );
 
+/**
+ * The payment trail, carried on the order.
+ *
+ * Every question a merchant asks about a payment — did it arrive, who said so,
+ * what reference did the shopper quote — is asked while looking at the order,
+ * so it lives on the order. A separate collection would add a join that can
+ * fail to a question that must always have an answer.
+ *
+ * Gateway fields stay null on a manual order and vice versa. They are not
+ * merged into one `reference` column because they mean different things: a UTR
+ * is something a shopper typed and may have typed wrong, while a gateway
+ * payment id is something the gateway asserted and can be reconciled against.
+ */
+const orderPaymentSchema = new Schema(
+  {
+    provider: { type: String, required: true, default: 'none' },
+    reference: { type: String, default: null },
+    claimedAt: { type: Date, default: null },
+    verifiedAt: { type: Date, default: null },
+    verifiedBy: { type: String, default: null },
+    rejectionReason: { type: String, default: null },
+    claimCount: { type: Number, default: 0 },
+    gatewayOrderId: { type: String, default: null },
+    gatewayPaymentId: { type: String, default: null },
+    /**
+     * When an unpaid order gives its stock back.
+     *
+     * Not a TTL index: the document must survive so the shopper can still see
+     * what they nearly bought and the shop can see what it nearly sold. The
+     * sweeper reads this field, releases the stock and marks the order failed.
+     */
+    expiresAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const orderSchema = new Schema(
   {
     _id: { type: String, required: true },
@@ -78,7 +114,8 @@ const orderSchema = new Schema(
     couponCode: { type: String, default: null },
     shippingAddress: { type: addressSchema, required: true },
     paymentMethod: { type: String, required: true },
-    paymentStatus: { type: String, required: true, default: 'pending' },
+    paymentStatus: { type: String, required: true, default: 'pending', index: true },
+    payment: { type: orderPaymentSchema, required: true, default: () => ({}) },
     trackingNumber: { type: String, default: null },
     estimatedDelivery: { type: Date, default: null },
     placedAt: { type: Date, required: true, default: () => new Date() },
@@ -90,6 +127,10 @@ const orderSchema = new Schema(
 orderSchema.index({ customerId: 1, placedAt: -1 });
 // "Has this shopper actually bought this?" — the verified-purchase check.
 orderSchema.index({ email: 1, 'lines.productId': 1 });
+// The sweeper's only query: unpaid orders whose window has closed.
+orderSchema.index({ paymentStatus: 1, 'payment.expiresAt': 1 });
+// Reconciling a gateway callback back to the order that started it.
+orderSchema.index({ 'payment.gatewayOrderId': 1 }, { sparse: true });
 
 export type OrderDoc = InferSchemaType<typeof orderSchema>;
 export const OrderModel = model('Order', orderSchema);

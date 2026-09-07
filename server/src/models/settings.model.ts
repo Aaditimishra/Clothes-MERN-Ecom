@@ -137,6 +137,18 @@ const settingsSchema = new Schema(
       accountName: { type: String, default: '' },
       accountNumber: { type: String, default: '' },
       ifsc: { type: String, default: '' },
+      /**
+       * Merchant-authored copy shown beside the transfer details.
+       *
+       * A shop that asks for the order number in the payment note gets a
+       * reference it can match against a bank statement; one that does not
+       * spends its evenings guessing which of four ₹2,499 credits belongs to
+       * which order.
+       */
+      instructions: {
+        type: String,
+        default: 'Quote your order number in the payment note so we can match it.',
+      },
     },
 
     /** The four promises under the hero. Editable, not hardcoded in JSX. */
@@ -147,6 +159,26 @@ const settingsSchema = new Schema(
       reviews: { type: Boolean, default: true },
       guestCheckout: { type: Boolean, default: true },
       codEnabled: { type: Boolean, default: true },
+
+      /**
+       * Accept UPI and bank transfers that a human verifies.
+       *
+       * On by default, because it is what a shop without a gateway account can
+       * actually do. Turning it off leaves cash on delivery as the only way to
+       * buy unless a gateway is switched on, so the storefront says so rather
+       * than presenting an empty payment step.
+       */
+      manualPaymentEnabled: { type: Boolean, default: true },
+
+      /**
+       * Route card, UPI and net banking through Razorpay.
+       *
+       * Off by default and inert without `RAZORPAY_KEY_ID` and
+       * `RAZORPAY_KEY_SECRET` in the environment — the switch alone cannot
+       * turn it on, because a merchant flipping a toggle must not be able to
+       * produce a checkout with no credentials behind it.
+       */
+      gatewayEnabled: { type: Boolean, default: false },
     },
   },
   { timestamps: true, collection: 'settings', _id: false },

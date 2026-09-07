@@ -60,6 +60,7 @@ export interface StoreSettings {
     accountName: string;
     accountNumber: string;
     ifsc: string;
+    instructions: string;
   };
   promises: Array<{ title: string; copy: string }>;
   features: {
@@ -67,6 +68,8 @@ export interface StoreSettings {
     reviews: boolean;
     guestCheckout: boolean;
     codEnabled: boolean;
+    manualPaymentEnabled: boolean;
+    gatewayEnabled: boolean;
   };
 }
 
@@ -120,9 +123,24 @@ export const DEFAULT_SETTINGS: StoreSettings = {
     heroCopy: '',
   },
   identity: { legalName: '', gstin: '', addressLine: '' },
-  payment: { upiId: '', upiName: '', bankName: '', accountName: '', accountNumber: '', ifsc: '' },
+  payment: {
+    upiId: '',
+    upiName: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    ifsc: '',
+    instructions: 'Quote your order number in the payment note so we can match it.',
+  },
   promises: [],
-  features: { wishlist: true, reviews: true, guestCheckout: true, codEnabled: true },
+  features: {
+    wishlist: true,
+    reviews: true,
+    guestCheckout: true,
+    codEnabled: true,
+    manualPaymentEnabled: true,
+    gatewayEnabled: false,
+  },
 };
 
 /**
@@ -226,6 +244,7 @@ const toSettings = (
       accountName: doc.payment?.accountName ?? '',
       accountNumber: doc.payment?.accountNumber ?? '',
       ifsc: doc.payment?.ifsc ?? '',
+      instructions: doc.payment?.instructions ?? DEFAULT_SETTINGS.payment.instructions,
     },
     promises: doc.promises.map((promise) => ({
       title: promise.title ?? '',
@@ -236,6 +255,16 @@ const toSettings = (
       reviews: doc.features?.reviews ?? true,
       guestCheckout: doc.features?.guestCheckout ?? true,
       codEnabled: doc.features?.codEnabled ?? true,
+      manualPaymentEnabled: doc.features?.manualPaymentEnabled ?? true,
+      /**
+       * Defaults to OFF, unlike its siblings.
+       *
+       * Every other switch defaults on because an older settings row predates
+       * it and the shop worked without it. A gateway is different: defaulting
+       * it on would route real money through credentials the merchant may not
+       * have, so an absent value must mean no.
+       */
+      gatewayEnabled: doc.features?.gatewayEnabled ?? false,
     },
   };
 };
@@ -313,3 +342,24 @@ export const saveSettings = async (patch: Record<string, unknown>): Promise<Stor
   invalidateSettingsCache();
   return getSettings();
 };
+
+/**
+ * Settings minus the shop's own bank details.
+ *
+ * The bootstrap is public and unauthenticated — every anonymous visitor gets it
+ * on the first page load. The UPI id, account number and IFSC have no use in
+ * the storefront chrome, and broadcasting them to everyone who opens the shop
+ * is exposure with nothing bought for it: the only people who need them are
+ * shoppers holding an unpaid order, who get them from the payment endpoint
+ * after proving the order is theirs.
+ *
+ * `instructions` stays, because it is merchant-authored copy meant to be read.
+ */
+export type PublicSettings = Omit<StoreSettings, 'payment'> & {
+  payment: { instructions: string };
+};
+
+export const toPublicSettings = (settings: StoreSettings): PublicSettings => ({
+  ...settings,
+  payment: { instructions: settings.payment.instructions },
+});

@@ -4,12 +4,18 @@ import {
   type Address,
   type OrderView,
   type PaymentMethod,
-  type PaymentStatus,
-  type Size,
+  type PlaceOrderResponse,
 } from '@shop/shared';
 
 import { ApiError } from '../../lib/api-error';
+import { toOrderView } from './order.view';
 import { computeTotals, type PricedLine } from '../../lib/pricing';
+import { requireProvider } from '../../lib/payments/policy';
+import {
+  buildPaymentHandoff,
+  deadlineFor,
+  initialPaymentStatus,
+} from '../payment/payment.service';
 import { getSettings } from '../settings/settings.service';
 import { CartModel } from '../../models/cart.model';
 import { CustomerModel } from '../../models/customer.model';
@@ -36,40 +42,8 @@ const newReference = (): string => {
   return `TL-${suffix}`;
 };
 
-export const toOrderView = (order: OrderDoc): OrderView => ({
-  id: order._id,
-  reference: order.reference,
-  status: order.status as OrderView['status'],
-  lines: order.lines.map((line) => ({
-    variantId: line.variantId,
-    productId: line.productId,
-    productSlug: line.productSlug,
-    name: line.name,
-    brand: line.brand,
-    sku: line.sku,
-    size: line.size as Size,
-    colour: line.colour,
-    colourLabel: line.colourLabel,
-    imageUrl: line.imageUrl ?? null,
-    quantity: line.quantity,
-    unitPrice: line.unitPrice,
-    compareAtPrice: line.compareAtPrice ?? null,
-    lineTotal: line.lineTotal,
-  })),
-  itemCount: order.lines.reduce((count, line) => count + line.quantity, 0),
-  totals: order.totals,
-  couponCode: order.couponCode ?? null,
-  shippingAddress: {
-    ...order.shippingAddress,
-    line2: order.shippingAddress.line2 ?? null,
-  },
-  paymentMethod: order.paymentMethod as PaymentMethod,
-  paymentStatus: order.paymentStatus as PaymentStatus,
-  trackingNumber: order.trackingNumber ?? null,
-  estimatedDelivery: order.estimatedDelivery?.toISOString() ?? null,
-  placedAt: order.placedAt.toISOString(),
-  updatedAt: (order.updatedAt ?? order.placedAt).toISOString(),
-});
+export { toOrderView } from './order.view';
+
 
 /**
  * Reserves stock for one variant, atomically.
@@ -120,9 +94,19 @@ export const placeOrder = async ({
   shippingAddress,
   paymentMethod,
   email,
-}: PlaceOrderInput): Promise<OrderView> => {
+}: PlaceOrderInput): Promise<PlaceOrderResponse> => {
   const cart = await requireCart(key);
   const view = await buildCartView(cart);
+
+  /**
+   * The method is resolved to a provider BEFORE any stock moves.
+   *
+   * A shop with no gateway must refuse a card here rather than after reserving
+   * the goods — and the check cannot live in the storefront, because a request
+   * is whatever was posted rather than whatever the form offered.
+   */
+  const settingsForPayment = await getSettings();
+  const provider = requireProvider(paymentMethod, settingsForPayment);
 
   if (view.issues.length > 0) {
     throw ApiError.unprocessable(
@@ -171,7 +155,14 @@ export const placeOrder = async ({
       reference: newReference(),
       customerId: key.customerId ?? null,
       email: email.toLowerCase(),
-      status: 'confirmed',
+      /**
+       * An unpaid order is NOT confirmed.
+       *
+       * Confirming it would put it in the packing queue for goods nobody has
+       * paid for. Cash on delivery is the exception: there the money genuinely
+       * arrives at the door, so the order is confirmed and shipped on trust.
+       */
+      status: provider === 'none' ? 'confirmed' : 'pending',
       lines: view.lines.map((line) => {
         const product = byId.get(line.productId);
         return {
@@ -196,12 +187,19 @@ export const placeOrder = async ({
       shippingAddress,
       paymentMethod,
       /**
-       * Card, UPI and netbanking are marked paid here because this shop has no
-       * payment gateway wired in. The field exists and is honest about what it
-       * means: cash on delivery is genuinely still pending until the courier
-       * collects. Wiring a real gateway means changing this one line.
+       * Nothing is ever marked paid here.
+       *
+       * An order is paid when money has actually moved and something checked —
+       * a human against a bank statement, or the gateway against its own
+       * ledger. Writing `paid` at checkout because the shopper chose UPI is how
+       * a shop ends up shipping goods it was never paid for, and it reads as
+       * working right up until the first reconciliation.
        */
-      paymentStatus: paymentMethod === 'cod' ? 'pending' : 'paid',
+      paymentStatus: initialPaymentStatus(provider),
+      payment: {
+        provider,
+        expiresAt: deadlineFor(provider),
+      },
       estimatedDelivery: new Date(
         Date.now() + settings.shipping.deliveryDays * 24 * 60 * 60 * 1000,
       ),
@@ -242,7 +240,24 @@ export const placeOrder = async ({
 
     void onOrderPlaced(placed, email.toLowerCase(), lowStock);
 
-    return placed;
+    /**
+     * The handoff is built last, and a failure to build it does not lose the
+     * order.
+     *
+     * Opening a gateway order is a network call to somebody else's service. If
+     * it fails, the shopper still has a real order with reserved stock that the
+     * shop can collect on another way — throwing here would leave them with a
+     * charge-free order they cannot see and stock nobody can sell.
+     */
+    let handoff: { manual: PlaceOrderResponse['manual']; gateway: PlaceOrderResponse['gateway'] };
+    try {
+      handoff = await buildPaymentHandoff(order.toObject() as OrderDoc);
+    } catch (handoffError) {
+      console.error(`[payment] could not build handoff for ${placed.reference}`, handoffError);
+      handoff = { manual: null, gateway: null };
+    }
+
+    return { order: placed, ...handoff };
   } catch (error) {
     await Promise.all(
       reserved.map((entry) => releaseStock(entry.variantId, entry.quantity)),
@@ -323,3 +338,28 @@ export const findOrder = async (
   return toOrderView(order as OrderDoc);
 };
 
+
+/**
+ * Loads an order the caller is entitled to act on, as a document.
+ *
+ * `findOrder` answers with a view, which is right for reading and useless for
+ * paying — the payment routes need the stored provider and gateway ids, which
+ * the wire shape deliberately trims. The ownership rule is identical and lives
+ * here rather than being restated at each payment route, because an ownership
+ * check written twice is an ownership check that will differ.
+ */
+export const requireOwnedOrder = async (
+  reference: string,
+  identity: { customerId: string | null; email: string | null },
+): Promise<OrderDoc> => {
+  const order = await OrderModel.findOne({ reference: reference.toUpperCase() }).lean();
+  if (!order) throw ApiError.notFound('No order with that reference');
+
+  const isOwner =
+    (identity.customerId !== null && order.customerId === identity.customerId) ||
+    (identity.email !== null && order.email === identity.email.toLowerCase());
+
+  if (!isOwner) throw ApiError.notFound('No order with that reference');
+
+  return order as OrderDoc;
+};
