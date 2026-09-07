@@ -7,21 +7,33 @@
  * do not share a stylesheet.
  */
 :root {
-  color-scheme: light;
-
+  /* --- Neutral ramp: the only source of surfaces and text ----------------
+   *
+   * Surfaces and text come from here, never from the shop's branding. That is
+   * deliberate: this is a tool somebody stares at for six hours, and a merchant
+   * who picks a neon brand colour must not be able to make their own order list
+   * unreadable. The brand gets in as `--brand` alone — the active nav item,
+   * focus rings, the first chart series. Accent is decoration; legibility is
+   * never delegated.
+   */
   --ink: #101418;
   --ink-2: #414c58;
   --ink-3: #6b7785;
   --ink-4: #97a1ad;
 
   --paper: #ffffff;
+  --paper-raised: #ffffff;
   --paper-2: #f6f8fa;
   --paper-3: #eceff3;
+  --paper-hover: #f0f3f6;
   --line: #dde2e8;
   --line-strong: #c6cdd6;
 
   --brand: #1f6feb;
+  --brand-hover: #1a5fd0;
   --brand-soft: #e8f0fe;
+  --brand-ink: #ffffff;
+
   --danger: #c1372c;
   --danger-soft: #fdeceb;
   --success: #1a7f45;
@@ -29,13 +41,86 @@
   --warn: #92610a;
   --warn-soft: #fdf3e2;
 
-  --radius: 6px;
-  --radius-lg: 10px;
-  --shadow: 0 4px 14px -6px rgb(16 20 24 / 0.18);
-  --shadow-lg: 0 20px 48px -18px rgb(16 20 24 / 0.32);
-  --sidebar: 232px;
+  /* --- Chart series ------------------------------------------------------
+   * Ordered for categorical data and picked to stay apart for the commonest
+   * colour-vision deficiencies — a status donut is useless if two neighbouring
+   * slices read as one. The first is the brand, so the primary series always
+   * belongs to the shop.
+   */
+  --chart-1: var(--brand);
+  --chart-2: #16887a;
+  --chart-3: #b8770c;
+  --chart-4: #6d48c4;
+  --chart-5: #b34a6d;
+  --chart-6: #4a7a2c;
+  --chart-grid: var(--line);
+
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Layered rather than one blurry drop — that is the difference between a card
+     that looks placed and one that looks like it is floating away. */
+  --shadow-sm: 0 1px 2px rgb(16 20 24 / 6%), 0 1px 3px rgb(16 20 24 / 4%);
+  --shadow: 0 2px 4px rgb(16 20 24 / 5%), 0 6px 16px rgb(16 20 24 / 8%);
+  --shadow-lg: 0 4px 8px rgb(16 20 24 / 6%), 0 16px 40px rgb(16 20 24 / 14%);
+
+  --sidebar: 244px;
+  --sidebar-rail: 64px;
+  --topbar-h: 60px;
+
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* One duration and one curve, so nothing animates differently from anything
+     else in the panel. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --fast: 140ms;
+
+  color-scheme: light;
+}
+
+/*
+ * Dark comes in two ways and both must work.
+ *
+ * The OS preference is the default, and an explicit choice overrides it in BOTH
+ * directions — `[data-theme='light']` has to beat a dark OS, or somebody who
+ * picks Light on a dark machine gets ignored and reports the toggle as broken.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ink: #e8edf3;
+    --ink-2: #b3bdc9;
+    --ink-3: #808d9c;
+    --ink-4: #5d6875;
+    --paper: #10141a;
+    --paper-raised: #171c24;
+    --paper-2: #171c24;
+    --paper-3: #1f2630;
+    --paper-hover: #212936;
+    --line: #2a323d;
+    --line-strong: #3a444f;
+    --brand: #5a9bff;
+    --brand-hover: #7db0ff;
+    --brand-soft: #16243a;
+    --brand-ink: #0b1017;
+    --danger: #f1746b;
+    --danger-soft: #2c1614;
+    --success: #4ec98d;
+    --success-soft: #12241a;
+    --warn: #e0a33c;
+    --warn-soft: #2a2113;
+    --chart-2: #3fbfae;
+    --chart-3: #e0a33c;
+    --chart-4: #a689ec;
+    --chart-5: #e07f9e;
+    --chart-6: #86c25a;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow: 0 2px 4px rgb(0 0 0 / 35%), 0 6px 16px rgb(0 0 0 / 40%);
+    --shadow-lg: 0 4px 8px rgb(0 0 0 / 35%), 0 16px 40px rgb(0 0 0 / 50%);
+  }
 }
 
 :root[data-theme='dark'] {
@@ -45,15 +130,30 @@
   --ink-3: #808d9c;
   --ink-4: #5d6875;
   --paper: #10141a;
+  --paper-raised: #171c24;
   --paper-2: #171c24;
   --paper-3: #1f2630;
+  --paper-hover: #212936;
   --line: #2a323d;
   --line-strong: #3a444f;
   --brand: #5a9bff;
+  --brand-hover: #7db0ff;
   --brand-soft: #16243a;
+  --brand-ink: #0b1017;
+  --danger: #f1746b;
   --danger-soft: #2c1614;
+  --success: #4ec98d;
   --success-soft: #12241a;
+  --warn: #e0a33c;
   --warn-soft: #2a2113;
+  --chart-2: #3fbfae;
+  --chart-3: #e0a33c;
+  --chart-4: #a689ec;
+  --chart-5: #e07f9e;
+  --chart-6: #86c25a;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow: 0 2px 4px rgb(0 0 0 / 35%), 0 6px 16px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 4px 8px rgb(0 0 0 / 35%), 0 16px 40px rgb(0 0 0 / 50%);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -87,62 +187,262 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 
 /* ------------------------------ app shell ------------------------------ */
 
-.shell { display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100dvh; }
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar) 1fr;
+  min-height: 100dvh;
+  /* The rail is a width change and nothing else, so the whole layout reflows
+     with one transition rather than each piece animating on its own clock. */
+  transition: grid-template-columns var(--fast) var(--ease);
+}
+
+.shell.is-rail { grid-template-columns: var(--sidebar-rail) 1fr; }
 
 .sidebar {
-  background: var(--paper);
+  background: var(--paper-raised);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   position: sticky;
   top: 0;
   height: 100dvh;
-  overflow-y: auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-brandbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 11px;
+  border-bottom: 1px solid var(--line);
+  min-height: var(--topbar-h);
 }
 
 .sidebar-brand {
-  padding: 18px 18px 14px;
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--ink);
 }
 
-.sidebar-brand strong { font-size: 15px; letter-spacing: -0.01em; }
-.sidebar-brand span { font-size: 11px; color: var(--ink-3); }
+.brand-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 700;
+  font-size: 14px;
+}
 
-.nav { padding: 8px; flex: 1; }
-.nav-group {
-  margin: 14px 0 2px;
-  padding: 0 10px;
+.brand-text { display: grid; gap: 0; min-width: 0; }
+.brand-text strong { font-size: 14px; letter-spacing: -0.01em; line-height: 1.25; }
+.brand-text span { font-size: 10.5px; color: var(--ink-3); line-height: 1.25; }
+
+.rail-toggle {
+  margin-left: auto;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.rail-toggle:hover { background: var(--paper-hover); color: var(--ink); }
+.rail-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.nav { padding: 10px 8px; flex: 1; overflow-y: auto; overflow-x: hidden; }
+.nav-group + .nav-group { margin-top: 14px; }
+
+.nav-heading {
+  padding: 0 10px 6px;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--ink-4);
+  white-space: nowrap;
 }
-.nav-group:first-child { margin-top: 2px; }
 
-.nav a {
+.nav-link {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 6px 10px;
+  gap: 10px;
+  padding: 7px 10px;
   margin-bottom: 1px;
   border-radius: var(--radius);
   color: var(--ink-2);
+  font-size: 13px;
   font-weight: 500;
-  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
 }
 
-.nav a:hover { background: var(--paper-3); color: var(--ink); }
-.nav a.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
-.nav a svg { flex: none; opacity: 0.75; }
-.nav a.active svg { opacity: 1; }
+.nav-link:hover { background: var(--paper-hover); color: var(--ink); }
 
-.sidebar-foot { padding: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
-.sidebar-user { display: grid; gap: 1px; font-size: 12px; }
-.sidebar-user strong { font-size: 12.5px; }
-.sidebar-user span { color: var(--ink-3); text-transform: capitalize; }
+.nav-link.active {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.nav-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+
+.nav-link.active .nav-icon { opacity: 1; }
+.nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.nav-badge {
+  flex: none;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Rail: icons only ---------------------------------------------------
+ *
+ * The labels are hidden rather than removed, so the DOM and the tab order do
+ * not change when the rail toggles and a screen reader still announces the
+ * link by name. `title` on each link is what a sighted person gets instead.
+ */
+.shell.is-rail .brand-text,
+.shell.is-rail .nav-label,
+.shell.is-rail .nav-heading,
+.shell.is-rail .profile-who,
+.shell.is-rail .profile-chev { display: none; }
+
+.shell.is-rail .sidebar-brandbar { flex-direction: column; gap: 6px; padding: 10px 8px; }
+.shell.is-rail .rail-toggle { margin: 0; }
+.shell.is-rail .nav-link { justify-content: center; padding: 9px 0; }
+.shell.is-rail .nav-group + .nav-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  /* With the headings gone the groups need some other separation, or the menu
+     becomes one undifferentiated column of sixteen icons. */
+  border-top: 1px solid var(--line);
+}
+
+/* Anchored to the icon, because the row it would otherwise sit in is 64px wide
+   and a two-digit count would push the icon off it. */
+.shell.is-rail .nav-link { position: relative; }
+.shell.is-rail .nav-badge {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  min-width: 15px;
+  padding: 0 4px;
+  font-size: 9.5px;
+  line-height: 15px;
+}
+
+.shell.is-rail .profile-trigger { justify-content: center; padding: 10px 0; }
+.shell.is-rail .profile-menu { left: calc(100% + 8px); right: auto; bottom: 8px; width: 232px; }
+
+/* --------------------------------- profile ------------------------------- */
+
+.profile { position: relative; padding: 8px; border-top: 1px solid var(--line); }
+
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-trigger:hover { background: var(--paper-hover); }
+
+.profile-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--paper-3);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.profile-who { display: grid; gap: 0; min-width: 0; flex: 1; }
+.profile-who strong { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-who span { font-size: 11px; color: var(--ink-3); text-transform: capitalize; }
+.profile-chev { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--ink-3); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.profile-menu {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  z-index: 40;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.profile-menu-head { display: grid; gap: 1px; padding: 6px 8px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.profile-menu-head strong { font-size: 12.5px; }
+.profile-menu-head span { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+
+.profile-section { display: grid; gap: 6px; padding: 6px 8px 8px; }
+.profile-section-title { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4); }
+
+.profile-item {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-item:hover { background: var(--paper-hover); color: var(--ink); }
+.profile-item.is-danger { color: var(--danger); }
+.profile-item.is-danger:hover { background: var(--danger-soft); }
+
+/* --------------------------------- main ---------------------------------- */
 
 .main { display: flex; flex-direction: column; min-width: 0; }
 
@@ -154,21 +454,54 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
   align-items: center;
   gap: 14px;
   padding: 0 24px;
-  height: 54px;
+  min-height: var(--topbar-h);
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
 
-.topbar h1 { font-size: 16px; }
+.topbar h1 { font-size: 16px; letter-spacing: -0.01em; }
+.topbar-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.topbar > .segmented { margin-left: auto; }
 
-.page { padding: 22px 24px 56px; display: grid; gap: 18px; align-content: start; }
+.page { padding: 20px 24px 56px; display: grid; gap: 16px; align-content: start; }
+
+/* ------------------------------- segmented ------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+
+.segmented-option {
+  padding: 4px 11px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.segmented-option:hover:not(.is-on) { color: var(--ink); }
+.segmented-option.is-on {
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
 
 /* -------------------------------- cards -------------------------------- */
 
 .card {
-  background: var(--paper);
+  background: var(--paper-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -185,27 +518,152 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 .card-head h2 { font-size: 13.5px; }
 .card-head .muted { font-size: 12px; }
 .card-head-actions { margin-left: auto; display: flex; gap: 8px; }
+.card-head > .btn, .card-head > a.btn { margin-left: auto; }
+.card-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+.card-figure { margin-left: auto; font-size: 15px; font-variant-numeric: tabular-nums; }
 .card-body { padding: 16px; display: grid; gap: 14px; }
+.card-hint { padding: 0 16px 14px; font-size: 12px; color: var(--ink-3); }
 
 .muted { color: var(--ink-3); }
 .mono { font-family: var(--mono); font-size: 12px; }
 
 /* -------------------------------- stats -------------------------------- */
 
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(212px, 1fr)); gap: 12px; }
+
+/* Dims the figures while a new window loads, rather than blanking them. The
+   previous period stays readable and the layout cannot jump. */
+.stats.is-stale { opacity: 0.55; transition: opacity var(--fast) var(--ease); }
 
 .stat {
-  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+  background: var(--paper-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: 15px 16px;
+  padding: 14px 16px 16px;
   display: grid;
-  gap: 3px;
+  gap: 6px;
+  align-content: start;
 }
 
-.stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
-.stat-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.stat-top { display: flex; align-items: flex-start; gap: 10px; }
+.stat-label { flex: 1; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
+
+.stat-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: var(--paper-3);
+  color: var(--ink-3);
+}
+
+.stat-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+.stat-value { font-size: 25px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-foot { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11.5px; }
 .stat-note { font-size: 11.5px; color: var(--ink-3); }
+
+/* The sparkline sits in the card's own padding, bled to the edges — inset it
+   and the line reads as a second small chart rather than as the card's own
+   texture. */
+.stat-spark { margin: 4px -16px -16px; height: 34px; }
+
+.trend { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.trend.is-up { color: var(--success); }
+.trend.is-down { color: var(--danger); }
+
+/* ------------------------------- attention ------------------------------- */
+
+.attention { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+
+.attention-item {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.attention-item:hover { background: var(--paper-hover); }
+.attention-item strong { font-size: 19px; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+.attention-item.is-warn { border-left-color: var(--warn); }
+
+/* -------------------------------- charts -------------------------------- */
+
+/*
+ * Two columns at desk width: the revenue chart earns the wide one because it is
+ * a time series and squeezing thirty days into a third of the screen makes the
+ * bars narrower than the gaps between them.
+ */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.dash-chart { grid-column: 1 / -1; }
+
+/*
+ * A definite height, and this matters.
+ *
+ * Everything inside the bar chart is sized in percentages, and a percentage
+ * height resolves against the parent's *definite* height. Left auto, the chain
+ * collapses: the plot becomes zero-high, the gridlines stack on one line and
+ * the bars vanish, while the card still reserves its full height — which reads
+ * as a chart that failed to load rather than as a layout bug.
+ */
+.chart-body { height: 216px; }
+
+.spark { display: block; width: 100%; height: 100%; }
+
+.bars { display: flex; flex-direction: column; height: 100%; gap: 6px; }
+.bars__plot { position: relative; display: flex; align-items: flex-end; gap: 2px; flex: 1; min-height: 0; }
+
+.bars__grid { position: absolute; left: 0; right: 0; height: 1px; background: var(--chart-grid); opacity: 0.7; }
+
+.bars__col { position: relative; display: flex; align-items: flex-end; justify-content: center; flex: 1; min-width: 0; height: 100%; }
+
+.bars__bar {
+  width: 100%;
+  max-width: 26px;
+  border-radius: 3px 3px 0 0;
+  background: var(--chart-1);
+  transition: height 280ms var(--ease);
+}
+
+.bars__col:hover .bars__bar { filter: brightness(1.12); }
+/* A day with no takings shows the gridline through it rather than a stub that
+   would read as a small sale. */
+.bars__bar.is-zero { background: none; }
+
+.bars__axis { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-4); }
+
+.donut { position: relative; display: grid; place-items: center; }
+.donut__svg { width: 100%; max-width: 168px; transform: rotate(-90deg); }
+.donut__track { stroke: var(--paper-3); }
+.donut__slice { transition: stroke-dasharray 300ms var(--ease); }
+
+/* Absolute, so the label sits in the hole without the ring reserving space for
+   it. Pointer events off, or it would swallow the slice tooltips. */
+.donut__centre { position: absolute; display: grid; justify-items: center; pointer-events: none; }
+.donut__total { font-size: 23px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.donut__caption { font-size: 11px; color: var(--ink-3); }
+
+.legend { display: grid; gap: 5px; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.legend-swatch { flex: none; width: 9px; height: 9px; border-radius: 2px; }
+.legend-label { flex: 1; color: var(--ink-2); text-transform: capitalize; }
+.legend-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.cell-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30ch; }
+.cell-sub { display: block; font-size: 11px; color: var(--ink-3); }
+
+.text-danger { color: var(--danger); font-weight: 600; }
+.text-warn { color: var(--warn); font-weight: 600; }
 
 /* -------------------------------- tables ------------------------------- */
 
@@ -323,7 +781,7 @@ td.tight { width: 1%; white-space: nowrap; }
     border-bottom: 1px solid var(--line);
   }
 
-  .mobile-bar strong { font-size: 15px; }
+  .mobile-bar strong { font-size: 15px; letter-spacing: -0.01em; }
   .mobile-bar .muted { font-size: 12px; }
 
   .mobile-burger {
@@ -402,6 +860,38 @@ td.tight { width: 1%; white-space: nowrap; }
   .page { padding: 16px 14px 48px; }
   .editor-aside { position: static; }
   .dialog-body { max-height: 60dvh; }
+
+  /* The period control belongs beside the heading, not shunted to a row of its
+     own by `topbar-actions`' full-width rule. */
+  .topbar > .segmented { margin-left: auto; }
+
+  /*
+   * The rail is meaningless here.
+   *
+   * Below this width the sidebar is already an overlay that covers the content,
+   * so collapsing it to icons hides the labels while still covering everything —
+   * the worst of both. The class can still be on `.shell` from a wider session,
+   * so it is overridden rather than assumed absent.
+   */
+  .shell.is-rail { grid-template-columns: 1fr; }
+  .shell.is-rail .brand-text,
+  .shell.is-rail .nav-label,
+  .shell.is-rail .nav-heading,
+  .shell.is-rail .profile-who,
+  .shell.is-rail .profile-chev { display: revert; }
+  .shell.is-rail .sidebar-brandbar { flex-direction: row; gap: 8px; padding: 12px 12px 11px; }
+  .shell.is-rail .nav-link { justify-content: flex-start; padding: 7px 10px; }
+  .shell.is-rail .nav-badge { position: static; min-width: 18px; padding: 1px 5px; font-size: 10.5px; line-height: normal; }
+  .shell.is-rail .nav-group + .nav-group { border-top: 0; padding-top: 0; margin-top: 14px; }
+  .shell.is-rail .profile-trigger { justify-content: flex-start; padding: 8px; }
+  .shell.is-rail .profile-menu { left: 8px; right: 8px; bottom: calc(100% - 4px); width: auto; }
+
+  .rail-toggle { display: none; }
+
+  /* Charts get shorter, not narrower — a 216px plot under a heading and above a
+     legend leaves almost nothing for the page itself on a phone. */
+  .chart-body { height: 180px; }
+  .dash-grid { grid-template-columns: 1fr; }
 }
 
 @media (min-width: 901px) {
@@ -793,19 +1283,6 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 
 .profile-page { max-width: 620px; }
 .profile-form { display: grid; gap: 14px; }
-
-/* The signed-in block is a link now, so it needs the affordances of one. */
-a.sidebar-user {
-  display: grid;
-  padding: 6px 8px;
-  margin: -6px -8px;
-  border-radius: var(--radius);
-  transition: background 0.12s;
-}
-
-a.sidebar-user:hover { background: var(--paper-3); }
-a.sidebar-user.active { background: var(--brand-soft); }
-a.sidebar-user.active strong { color: var(--brand); }
 
 /*
  * Read-only detail blocks — the profile's access panel, an email's metadata.

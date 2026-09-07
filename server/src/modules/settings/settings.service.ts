@@ -44,6 +44,8 @@ export interface StoreSettings {
   supportPhone: string | null;
   currency: string;
   locale: string;
+  /** IANA zone name. Day boundaries on the dashboard are computed in it. */
+  timezone: string;
   shipping: {
     freeAbove: Money;
     standard: Money;
@@ -88,6 +90,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   supportPhone: null,
   currency: 'INR',
   locale: 'en-IN',
+  timezone: 'Asia/Kolkata',
   shipping: {
     freeAbove: money(149_900),
     standard: money(9_900),
@@ -189,6 +192,7 @@ const toSettings = (
     supportPhone: doc.supportPhone ?? null,
     currency: doc.currency,
     locale: doc.locale,
+    timezone: doc.timezone || DEFAULT_SETTINGS.timezone,
     shipping: {
       freeAbove: toMoney(doc.shipping?.freeAbove, DEFAULT_SETTINGS.shipping.freeAbove),
       standard: toMoney(doc.shipping?.standard, DEFAULT_SETTINGS.shipping.standard),

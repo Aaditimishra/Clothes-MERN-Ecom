@@ -8,7 +8,7 @@ npm run dev:test                #              servers, credential limit raised
 npm run smoke                   # terminal 2 — run ONCE
 ```
 
-**336 checks, 0 failures.**
+**351 checks, 0 failures.**
 
 ### Why `dev:test` and not `dev`
 
@@ -59,6 +59,7 @@ Several assertions also depend on known stock levels, so reseed first.
 | 10 | Checkout | Validation, stock decrement, bag clearing, guest lookup by email, COD surcharge, address auto-save + dedupe |
 | 11 | Reviews | Summary agrees with the card, duplicate rejection, rating recalculation, name abbreviation |
 | 12 | Admin auth | Customer tokens rejected, per-role permission enforcement |
+| 13 | Dashboard | The window is a parameter, days bucket in the shop timezone, the series covers quiet days too, the average divides by paid orders, and a trend with no comparison is null rather than a number |
 | 22 | Stock on ending an order | Cancelling restocks and cannot restock twice; a shipped cancel does not; a return restocks only when the merchant says so |
 | 21 | Paying | The whole manual lifecycle — claim, send back, re-claim, verify — plus the refusals: an analyst cannot confirm money, a cancelled order cannot be marked paid, verifying twice is a no-op, an unsigned webhook is rejected |
 | 13 | Admin catalogue | Taxonomy CRUD, product create/update, **variant reconciliation**, publish, archive |

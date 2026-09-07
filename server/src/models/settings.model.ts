@@ -57,6 +57,15 @@ const settingsSchema = new Schema(
 
     currency: { type: String, required: true, default: 'INR' },
     locale: { type: String, required: true, default: 'en-IN' },
+    /**
+     * The shop's own clock, and what "today" means on the dashboard.
+     *
+     * Bucketing daily takings in UTC puts every order placed between midnight
+     * and 05:30 into the previous day for an Indian shop — the chart is then
+     * quietly wrong every single night, in a way nobody can see by looking at
+     * it. An IANA name, because offsets do not survive daylight saving.
+     */
+    timezone: { type: String, required: true, default: 'Asia/Kolkata' },
 
     shipping: {
       freeAbove: { type: moneySchema, required: true },

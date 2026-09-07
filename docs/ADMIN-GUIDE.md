@@ -34,6 +34,66 @@ ticket.
 
 ---
 
+## The dashboard
+
+Four figures, two charts and two lists, over a window you choose — **7, 30 or
+90 days** from the control beside the heading.
+
+| Figure | What it counts |
+| --- | --- |
+| **Revenue taken** | Money actually received: paid orders, less cancellations and returns. Not what was ordered |
+| **Orders** | Everything placed in the window, paid or not, with how many are paid |
+| **Average order** | Revenue divided by **paid** orders only. Dividing by every order placed drags it down with abandoned ones |
+| **Customers** | Registered shoppers, and how many signed up in this window |
+
+Each of the first two carries a change against **the window immediately before**
+— 30 days against the 30 before that, so you are comparing like with like. When
+the previous window took nothing it says "no comparison" rather than a
+percentage: there is no honest ratio against zero.
+
+**Days are counted on your clock**, from the time zone in Store settings. That
+matters more than it sounds: measured in UTC, everything sold between midnight
+and 05:30 would land on the previous day, and the chart would be quietly wrong
+every night.
+
+**Revenue per day** is bars rather than a line, because a day's takings are a
+discrete thing — a line drawn between them implies a quantity nobody measured in
+between. A day with no takings shows the gridline through it, not a stub.
+
+**Orders by stage** shows where the work is sitting. **Best sellers** ranks by
+units sold, not revenue, so a cheap thing that flies is not hidden behind an
+expensive thing that trickles. **Running low** names sizes, not products —
+"Oxford shirt is low" is not something you can order against.
+
+If something needs a person, a strip appears above the charts and links straight
+to it. It is absent when there is nothing to do, deliberately: a row of zeroes
+every morning teaches everyone to stop reading it, and then it is not there on
+the day it matters.
+
+---
+
+## Finding your way around
+
+The sidebar groups sections by the job they belong to — Overview, Catalogue,
+Sales, Configure — and only shows what your permissions allow. A link you cannot
+use is not greyed out, it is absent: a disabled link still tells you the feature
+exists and invites a question about it.
+
+**Counts appear on the sections that need you.** Notifications carries unread
+items and Payments carries transfers waiting to be checked, so you can see the
+work without opening the page.
+
+**The collapse button** beside the logo shrinks the menu to icons, which is worth
+doing on a wide stock table. It is remembered, so you do not have to do it again
+tomorrow.
+
+**Light, dark or system** is under your name at the bottom. "System" follows your
+computer, which is the default, and it stays available so choosing Dark once does
+not trap you there. The choice is yours alone — it is stored in your browser and
+changes nothing for anyone else.
+
+---
+
 ## What is editable, and where
 
 | I want to… | Go to | Reaches the shop |

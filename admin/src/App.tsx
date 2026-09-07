@@ -1,7 +1,10 @@
-import { Fragment, useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 import { RequirePermission } from './components/RequirePermission';
+import { Sidebar } from './components/Sidebar';
+import { api } from './lib/api';
 import { useSession } from './lib/session';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { CouponsPage } from './pages/CouponsPage';
@@ -22,84 +25,6 @@ import { ContentPage } from './pages/ContentPage';
 import { SizeChartsPage } from './pages/SizeChartsPage';
 import { StaffPage } from './pages/StaffPage';
 import { TaxonomyPage } from './pages/TaxonomyPage';
-
-interface NavEntry {
-  to: string;
-  label: string;
-  permission: string;
-  group: string;
-}
-
-/**
- * The menu is derived from permissions, so a merchandiser never sees a Settings
- * link that would 403 on click. Hiding beats disabling here: a greyed-out link
- * still tells someone the feature exists and invites a support ticket.
- */
-const NAV: NavEntry[] = [
-  { to: '/', label: 'Dashboard', permission: 'order.view', group: 'Overview' },
-  // No permission gate: the feed itself is filtered, so everyone sees their own.
-  { to: '/notifications', label: 'Notifications', permission: '*', group: 'Overview' },
-  { to: '/products', label: 'Products', permission: 'catalog.view', group: 'Catalogue' },
-  { to: '/categories', label: 'Categories', permission: 'catalog.view', group: 'Catalogue' },
-  { to: '/taxonomy', label: 'Attributes', permission: 'catalog.view', group: 'Catalogue' },
-  { to: '/size-charts', label: 'Size charts', permission: 'catalog.view', group: 'Catalogue' },
-  { to: '/media', label: 'Media', permission: 'catalog.view', group: 'Catalogue' },
-  { to: '/content', label: 'Journal & pages', permission: 'catalog.view', group: 'Catalogue' },
-  { to: '/orders', label: 'Orders', permission: 'order.view', group: 'Sales' },
-  { to: '/payments', label: 'Payments', permission: 'order.view', group: 'Sales' },
-  { to: '/customers', label: 'Customers', permission: 'customer.view', group: 'Sales' },
-  { to: '/coupons', label: 'Coupons', permission: 'promotion.manage', group: 'Sales' },
-  { to: '/reviews', label: 'Reviews', permission: 'review.moderate', group: 'Sales' },
-  { to: '/settings', label: 'Store settings', permission: 'settings.manage', group: 'Configure' },
-  { to: '/staff', label: 'Staff', permission: 'staff.manage', group: 'Configure' },
-  { to: '/emails', label: 'Emails', permission: 'settings.manage', group: 'Configure' },
-];
-
-const Sidebar = ({ isOpen, onNavigate }: { isOpen: boolean; onNavigate: () => void }) => {
-  const { session, signOut, can } = useSession();
-  const visible = NAV.filter((entry) => entry.permission === '*' || can(entry.permission));
-  const { data: notifications } = useNotifications();
-
-  let lastGroup = '';
-
-  return (
-    <aside className={`sidebar${isOpen ? ' is-open' : ''}`} onClick={onNavigate}>
-      <div className="sidebar-brand">
-        <strong>Threadline</strong>
-        <span>Admin</span>
-      </div>
-
-      <nav className="nav">
-        {visible.map((entry) => {
-          const heading = entry.group !== lastGroup ? entry.group : null;
-          lastGroup = entry.group;
-
-          return (
-            <Fragment key={entry.to}>
-              {heading ? <p className="nav-group">{heading}</p> : null}
-              <NavLink to={entry.to} end={entry.to === '/'}>
-                {entry.label}
-                {entry.to === '/notifications' && notifications && notifications.unread > 0 ? (
-                  <span className="nav-badge">{notifications.unread}</span>
-                ) : null}
-              </NavLink>
-            </Fragment>
-          );
-        })}
-      </nav>
-
-      <div className="sidebar-foot">
-        <NavLink to="/profile" className="sidebar-user">
-          <strong>{session?.staff.name}</strong>
-          <span>{session?.staff.role} · view profile</span>
-        </NavLink>
-        <button type="button" className="btn btn-sm" onClick={signOut}>
-          Sign out
-        </button>
-      </div>
-    </aside>
-  );
-};
 
 export const App = () => {
   const { session, isReady } = useSession();
@@ -127,9 +52,50 @@ export const App = () => {
  * down an 844px screen, so a merchant scrolled past the whole menu before seeing
  * anything they came for.
  */
+const RAIL_KEY = 'threadline.admin.rail';
+
 const Shell = () => {
   const [isNavOpen, setNavOpen] = useState(false);
+  /**
+   * The rail is remembered, because it is a working preference rather than a
+   * mood: somebody who collapsed the menu to read a wide stock table wants it
+   * collapsed tomorrow too, and re-collapsing it every morning is the kind of
+   * small tax that makes a tool feel unfinished.
+   */
+  const [isRail, setRail] = useState(() => {
+    try {
+      return localStorage.getItem(RAIL_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const { pathname } = useLocation();
+
+  const toggleRail = () => {
+    setRail((rail) => {
+      try {
+        localStorage.setItem(RAIL_KEY, rail ? '0' : '1');
+      } catch {
+        // Not worth surfacing — the rail still toggles for this session.
+      }
+      return !rail;
+    });
+  };
+
+  const { data: notifications } = useNotifications();
+
+  /**
+   * The payments badge, from the same queue the screen itself reads.
+   *
+   * A count is the difference between somebody opening Payments because they
+   * remembered to and opening it because a shopper is waiting. Sixty seconds is
+   * often enough for that, and cheap enough not to think about.
+   */
+  const { data: paymentQueue } = useQuery({
+    queryKey: ['payment-queue'],
+    queryFn: () => api<{ total: number }>('/payments?pageSize=1&paymentStatus=verifying'),
+    refetchInterval: 60_000,
+  });
 
   // Any navigation closes the drawer, so nobody lands on a new page with the
   // previous page's menu still over it.
@@ -156,7 +122,7 @@ const Shell = () => {
   }, [isNavOpen]);
 
   return (
-    <div className="shell">
+    <div className={`shell${isRail ? ' is-rail' : ''}`}>
       <div className="mobile-bar">
         <button
           type="button"
@@ -173,7 +139,16 @@ const Shell = () => {
         <span className="muted">Admin</span>
       </div>
 
-      <Sidebar isOpen={isNavOpen} onNavigate={() => setNavOpen(false)} />
+      <Sidebar
+        isOpen={isNavOpen}
+        isRail={isRail}
+        onToggleRail={toggleRail}
+        onNavigate={() => setNavOpen(false)}
+        badges={{
+          notifications: notifications?.unread ?? 0,
+          payments: paymentQueue?.total ?? 0,
+        }}
+      />
 
       {isNavOpen ? (
         <div className="sidebar-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />

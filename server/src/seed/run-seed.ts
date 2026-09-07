@@ -23,6 +23,7 @@ import { REVIEW_AUTHORS, REVIEW_TEMPLATES } from './reviews';
 import { SEED_SIZE_CHARTS, SEED_VOCABULARY } from './vocabulary';
 import { SEED_PAGES } from './pages';
 import { SEED_POSTS } from './journal';
+import { buildSeedOrders } from './orders';
 
 /**
  * Deterministic pseudo-randomness.
@@ -48,13 +49,25 @@ const imageUrl = (photoId: string, width = 900): string =>
  * Stock varies by size in the shape a real shop has: the middle sizes sell out,
  * the ends linger. One combination per product is forced to zero so the sold-out
  * state is always visible somewhere in the demo.
+ *
+ * The middle band is deliberate. The previous formula jumped from 0 straight to
+ * 7 — `4 + roll * 14` with `roll` already past the sold-out cutoff can never
+ * land below six — so no variant was ever in the 1-5 "running low" range. The
+ * low-stock tile read zero, the dashboard's Running low card was permanently
+ * empty, and the `stock.low` alert the order path sends could not fire in a
+ * demo. Every one of those looked like a feature that did not work.
  */
 const stockFor = (product: SeedProduct, size: Size, colour: string): number => {
   const roll = seededRandom(`${product.slug}:${size}:${colour}`);
   const isMidSize = size === 'm' || size === 'l';
 
-  if (roll < (isMidSize ? 0.18 : 0.08)) return 0;
-  return Math.round(4 + roll * (isMidSize ? 14 : 26));
+  const soldOutBelow = isMidSize ? 0.18 : 0.08;
+  if (roll < soldOutBelow) return 0;
+
+  // A tenth of what is left sits in the range that needs reordering.
+  if (roll < soldOutBelow + 0.1) return 1 + Math.round(roll * 30) % 5;
+
+  return Math.round(6 + roll * (isMidSize ? 12 : 24));
 };
 
 /** Which shared chart a garment uses, derived from where it sits in the shop. */
@@ -472,6 +485,7 @@ const seed = async (): Promise<void> => {
     supportEmail: 'help@threadline.shop',
     supportPhone: '1800 000 000',
     currency: 'INR',
+    timezone: 'Asia/Kolkata',
     locale: 'en-IN',
     shipping: {
       freeAbove: rupees(1499),
@@ -651,6 +665,25 @@ const seed = async (): Promise<void> => {
     },
   ]);
 
+  /**
+   * Eight weeks of trading.
+   *
+   * Written last, because it reads the products that were just created — and
+   * because a dashboard with no orders shows four zeroes and two empty charts,
+   * which is exactly the screen somebody evaluating the panel opens first.
+   *
+   * Stock is NOT decremented for these. They are history: the quantities the
+   * catalogue seeded are what the shop has on the shelf today, and subtracting
+   * two months of sales from them would leave the demo half sold out.
+   */
+  console.info('[seed] order history');
+  const seededOrders = buildSeedOrders(productDocs as never, {
+    codSurcharge: 4_900,
+    freeAbove: 149_900,
+    standard: 9_900,
+  });
+  await OrderModel.insertMany(seededOrders.orders);
+
   console.info('[seed] demo customer');
   const CUSTOMER_PASSWORD = 'threadline-demo-2026';
   await CustomerModel.create({
@@ -715,6 +748,7 @@ const seed = async (): Promise<void> => {
   ${categoryIds.size} categories · ${vocabularySize} vocabulary terms · ${SEED_SIZE_CHARTS.length} size charts
   ${mediaByPhoto.size} images · ${SEED_PAGES.length} content pages · ${SEED_POSTS.length} journal entries
   ${reviewCount} reviews · ${SEED_COUPONS.length} coupons (${SEED_COUPONS.map((c) => c.code).join(', ')})
+  ${seededOrders.orders.length} orders across the last 60 days
 
   ADMIN   http://localhost:5174
           admin@threadline.shop / ${ADMIN_PASSWORD}      (owner — everything)

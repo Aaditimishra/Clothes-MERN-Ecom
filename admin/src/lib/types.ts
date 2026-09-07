@@ -1,4 +1,4 @@
-import type { Money, OrderStatus, PaymentStatus, SizeChartView } from '@shop/shared';
+import type { Money, OrderStatus, OrderView, PaymentStatus, SizeChartView } from '@shop/shared';
 
 export interface StaffView {
   id: string;
@@ -158,20 +158,40 @@ export interface AdminCustomer {
 }
 
 export interface Dashboard {
-  revenue30d: Money;
-  orders30d: number;
-  activeProducts: number;
-  lowStockProducts: number;
-  customers: number;
-  recentOrders: Array<{
-    id: string;
-    reference: string;
-    status: OrderStatus;
-    paymentStatus: PaymentStatus;
-    itemCount: number;
-    totals: { grandTotal: Money };
-    placedAt: string;
+  windowDays: number;
+  timezone: string;
+  totals: {
+    revenue: Money;
+    /** Null when the previous window took nothing — there is no honest ratio. */
+    revenueChangePercent: number | null;
+    orders: number;
+    ordersChangePercent: number | null;
+    paidOrders: number;
+    averageOrderValue: Money;
+    customers: number;
+    newCustomers: number;
+    refunded: Money;
+    awaitingPayment: number;
+    toVerify: number;
+  };
+  /** One entry per day in the window, including the days nothing happened. */
+  series: Array<{ date: string; revenue: number; orders: number }>;
+  statusBreakdown: Array<{ status: string; count: number }>;
+  topProducts: Array<{
+    productId: string;
+    name: string;
+    sku: string;
+    quantity: number;
+    revenue: Money;
   }>;
+  lowStock: Array<{
+    productId: string;
+    name: string;
+    size: string;
+    colour: string;
+    left: number;
+  }>;
+  recentOrders: OrderView[];
 }
 
 export interface Branding {

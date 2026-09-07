@@ -179,6 +179,21 @@ export const settingsSchema = z.object({
   promoBar: z.string().trim().max(300).optional(),
   supportEmail: z.string().trim().email().nullish(),
   supportPhone: z.string().trim().max(40).nullish(),
+  // Checked against the runtime's own zone database rather than a list we
+  // would have to maintain: an unknown zone throws here instead of silently
+  // bucketing a year of takings in UTC.
+  timezone: z
+    .string()
+    .trim()
+    .refine((zone) => {
+      try {
+        new Intl.DateTimeFormat('en', { timeZone: zone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Enter a valid time zone, e.g. Asia/Kolkata')
+    .optional(),
   shipping: z
     .object({
       freeAbove: moneyInput,

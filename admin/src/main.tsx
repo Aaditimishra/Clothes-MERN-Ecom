@@ -6,8 +6,18 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { AdminError } from './lib/api';
 import { SessionProvider } from './lib/session';
+import { applyTheme, readTheme } from './lib/theme';
 import { ToastProvider } from './lib/toast';
 import './styles/admin.css';
+
+/**
+ * Applied before React mounts.
+ *
+ * Doing it in an effect paints the default theme for a frame first, which on a
+ * dark machine is a white flash in a dark room — small, and the kind of thing
+ * people notice every single time they open the panel.
+ */
+applyTheme(readTheme());
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -476,7 +476,49 @@ check('operations CAN read orders', s == 200, s)
 
 section('13. Admin catalogue CRUD')
 s, dash = call('GET', '/admin/dashboard', token=ATOK)
-check('dashboard 200', s == 200 and dash['activeProducts'] > 0, s)
+dash = must('dashboard 200', s, dash)
+check('dashboard answers for a window', dash['windowDays'] == 30, dash['windowDays'])
+check('days are bucketed in the shop timezone', dash['timezone'] == 'Asia/Kolkata', dash['timezone'])
+
+# One point per DAY, including the days nothing sold. A chart drawn only from
+# days that had orders compresses a quiet week and reads as busier than it was.
+check('the series covers every day in the window', len(dash['series']) == 30, len(dash['series']))
+check('series points carry both measures',
+      all('revenue' in p and 'orders' in p and 'date' in p for p in dash['series']))
+
+t = dash['totals']
+check('revenue is money, in paise', isinstance(t['revenue']['amount'], int), t['revenue'])
+check('the seeded shop has taken money', t['revenue']['amount'] > 0, t['revenue'])
+check('orders are counted', t['orders'] > 0, t['orders'])
+# Averaged over PAID orders. Dividing by every order placed drags it down with
+# the abandoned ones and stops it meaning anything.
+check('average order is revenue over paid orders',
+      t['averageOrderValue']['amount'] == round(t['revenue']['amount'] / t['paidOrders']),
+      f"{t['averageOrderValue']} vs {t['revenue']}/{t['paidOrders']}")
+# Null, not zero and not infinity, when the previous window took nothing.
+check('a trend is a number or an honest null',
+      t['revenueChangePercent'] is None or isinstance(t['revenueChangePercent'], (int, float)),
+      t['revenueChangePercent'])
+
+check('the shop has orders at several stages', len(dash['statusBreakdown']) >= 3, dash['statusBreakdown'])
+check('best sellers are ranked by units',
+      all(dash['topProducts'][i]['quantity'] >= dash['topProducts'][i + 1]['quantity']
+          for i in range(len(dash['topProducts']) - 1)),
+      [p['quantity'] for p in dash['topProducts']])
+
+# The seed used to jump from 0 straight to 7, so nothing was ever in the 1-5
+# band and this card was permanently empty in the demo.
+check('running low has something in it', len(dash['lowStock']) > 0, dash['lowStock'])
+check('every low-stock row is actually low',
+      all(0 < row['left'] <= 5 for row in dash['lowStock']), dash['lowStock'])
+
+s, week = call('GET', '/admin/dashboard?days=7', token=ATOK)
+check('the window is a parameter', week['windowDays'] == 7 and len(week['series']) == 7,
+      f"{week['windowDays']}d / {len(week['series'])} points")
+check('a shorter window cannot have taken more', week['totals']['orders'] <= t['orders'],
+      f"7d {week['totals']['orders']} vs 30d {t['orders']}")
+s, d = call('GET', '/admin/dashboard?days=0', token=ATOK)
+check('a nonsense window is refused', s == 400, s)
 s, d = call('POST', '/admin/taxonomy', {'group':'fabric','label':'Corduroy'}, token=ATOK)
 check('create taxonomy term', s == 201 and d['code'] == 'corduroy', d)
 TERM = d['id']

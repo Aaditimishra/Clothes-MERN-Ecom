@@ -21,6 +21,7 @@ import { deletePost, listAllPosts, savePost } from '../content/journal.service';
 import { BLOCK_TYPES } from '../../models/page.model';
 import { toOrderView } from '../order/order.view';
 import { applyStatusChangeToStock } from '../order/stock.service';
+import { buildDashboard } from './dashboard.service';
 import {
   rejectManualPayment,
   verifyManualPayment,
@@ -211,35 +212,20 @@ adminRouter.get(
 adminRouter.get(
   '/dashboard',
   requirePermission('order.view'),
-  asyncHandler(async (_req, res) => {
-    const since = new Date(Date.now() - 30 * 86_400_000);
+  asyncHandler(async (req, res) => {
+    /**
+     * The window is a parameter, not a constant.
+     *
+     * "Last 30 days" answers a different question from "last 7": one is how the
+     * season is going, the other is whether something broke on Tuesday. The
+     * panel offers both, so the figures have to be able to follow.
+     */
+    const { days } = parseQuery(
+      req,
+      z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }),
+    );
 
-    const [revenue, orderCount, productCount, lowStock, recentOrders, customerCount] =
-      await Promise.all([
-        OrderModel.aggregate<{ total: number }>([
-          { $match: { placedAt: { $gte: since }, status: { $nin: ['cancelled', 'returned'] } } },
-          { $group: { _id: null, total: { $sum: '$totals.grandTotal.amount' } } },
-        ]),
-        OrderModel.countDocuments({ placedAt: { $gte: since } }),
-        ProductModel.countDocuments({ status: 'active' }),
-        // "Low stock" counts PRODUCTS with a thin size, not variants — a merchant
-        // acts on a product, and 40 variant rows for 8 products reads as panic.
-        ProductModel.countDocuments({
-          status: 'active',
-          variants: { $elemMatch: { isEnabled: true, stockQuantity: { $gt: 0, $lte: 5 } } },
-        }),
-        OrderModel.find().sort({ placedAt: -1 }).limit(8).lean(),
-        CustomerModel.countDocuments(),
-      ]);
-
-    res.json({
-      revenue30d: { amount: revenue[0]?.total ?? 0, currency: 'INR' },
-      orders30d: orderCount,
-      activeProducts: productCount,
-      lowStockProducts: lowStock,
-      customers: customerCount,
-      recentOrders: (recentOrders as OrderDoc[]).map(toOrderView),
-    });
+    res.json(await buildDashboard(days));
   }),
 );
 

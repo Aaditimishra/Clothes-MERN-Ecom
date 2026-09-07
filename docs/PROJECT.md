@@ -48,7 +48,7 @@ Full admin walkthrough: [ADMIN-GUIDE.md](./ADMIN-GUIDE.md)
 | `npm run seed` | Wipes and rebuilds the demo shop |
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
-| `npm run smoke` | 336 end-to-end checks against a live, freshly seeded server |
+| `npm run smoke` | 351 end-to-end checks against a live, freshly seeded server |
 | `npm run build` | Server bundle + both client builds |
 
 ---
@@ -180,6 +180,27 @@ the same garment twice. They return through a return.
 **A return does not restock on its own.** The goods are physically back, but a
 worn or damaged garment going straight onto the shelf is worse than one sitting
 in a box, so it takes the merchant saying they have looked at it.
+
+**The admin has its own palette, and the shop's brand does not get into it.**
+Surfaces and text come from a neutral ramp; the brand appears only as the active
+nav item, focus rings and the first chart series. This is a tool somebody stares
+at for six hours, and a merchant who picks a neon brand colour must not be able
+to make their own order list unreadable. Accent is decoration; legibility is
+never delegated.
+
+**Dashboard days are bucketed in the shop's own timezone**, read from settings.
+In UTC, every order an Indian shop takes between midnight and 05:30 lands on the
+previous day — the chart is then quietly wrong every night, in a way nobody can
+see by looking at it.
+
+**A trend with no comparison prints nothing rather than a number.** A shop that
+took nothing last week and took money this week has not grown by infinity per
+cent; `null` renders as "no comparison", where 0% would read as flat.
+
+**The charts are hand-drawn — an area, a column and a ring.** Each is a handful
+of geometry, against a library that would ship its own opinions about colour and
+type and have to be themed back into line anyway. They read the same tokens as
+everything else, so one theme switch moves all of them.
 
 **Facets are counted against every filter except their own.** Selecting "Black"
 must not collapse the colour list to one option — the shopper could never widen
@@ -464,7 +485,7 @@ Seeded: 21 products · 77 vocabulary terms · 11 categories · 4 size charts ·
 | `npm run typecheck` | **0 errors** across 4 workspaces |
 | `npm run lint` | **0 errors** (warnings are intentional non-null assertions) |
 | `npm run build` | Passes — server bundle, shop, admin |
-| `npm run smoke` | **336 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
+| `npm run smoke` | **351 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
 | Bugs found and fixed | **27**, each with a regression test — see [BUGS-FIXED.md](./BUGS-FIXED.md) |
 | Seed | 20 products · 195 variants · 76 vocabulary terms · 4 size charts · 42 images · 130 reviews · 5 content pages · 3 journal entries · a seeded notification feed and outbox |
 
