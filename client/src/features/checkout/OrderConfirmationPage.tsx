@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { formatMoney, type OrderView } from '@shop/shared';
+import { formatMoney, type PlaceOrderResponse, type OrderView } from '@shop/shared';
 
 import { request } from '../../lib/api';
 import { OrderSummary } from '../cart/OrderSummary';
+import { PaymentPanel } from './PaymentPanel';
 import { NotFoundPage } from '../NotFoundPage';
 
 export const OrderConfirmationPage = () => {
@@ -17,7 +18,8 @@ export const OrderConfirmationPage = () => {
    * flashing a skeleton for something the previous request already returned. A
    * direct visit or a refresh has no state, and falls back to fetching.
    */
-  const placed = (location.state as { order?: OrderView } | null)?.order;
+  const state = location.state as PlaceOrderResponse | null;
+  const placed = state?.order;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order', reference],
@@ -36,6 +38,16 @@ export const OrderConfirmationPage = () => {
 
   if (isError || !data) return <NotFoundPage />;
 
+  /**
+   * The heading tells the truth about whether this order is actually placed.
+   *
+   * "Order confirmed" over an order that is awaiting a bank transfer is the
+   * single most expensive lie this page could tell: the shopper stops, never
+   * sends the money, and the shop holds stock for an order nobody is coming
+   * back to. It is confirmed when it is paid, or when it is cash on delivery.
+   */
+  const isSettled = data.paymentStatus === 'paid' || data.paymentStatus === 'pending';
+
   const eta = data.estimatedDelivery
     ? new Date(data.estimatedDelivery).toLocaleDateString('en-IN', {
         weekday: 'long',
@@ -48,14 +60,18 @@ export const OrderConfirmationPage = () => {
     <div className="shell page confirmation">
       <div className="confirmation-head">
         <span className="confirmation-tick" aria-hidden="true">
-          ✓
+          {isSettled ? '✓' : '•'}
         </span>
-        <h1 className="section-title">Order confirmed</h1>
+        <h1 className="section-title">
+          {isSettled ? 'Order confirmed' : 'Almost there — your order needs paying'}
+        </h1>
         <p className="muted">
-          Order <strong>{data.reference}</strong> · a confirmation is on its way to your
-          email.
+          Order <strong>{data.reference}</strong>
+          {isSettled
+            ? ' · a confirmation is on its way to your email.'
+            : ' · we have saved your items. Send the payment below and we will confirm it.'}
         </p>
-        {eta ? <p className="confirmation-eta">Arriving by {eta}</p> : null}
+        {isSettled && eta ? <p className="confirmation-eta">Arriving by {eta}</p> : null}
       </div>
 
       <div className="confirmation-body">
@@ -99,10 +115,10 @@ export const OrderConfirmationPage = () => {
 
         <aside className="cart-aside">
           <h2 className="cart-aside-title">Payment</h2>
-          <p className="muted confirmation-payment">
-            {data.paymentMethod.toUpperCase()} ·{' '}
-            {data.paymentStatus === 'paid' ? 'Paid' : 'Due on delivery'}
-          </p>
+          <PaymentPanel
+            order={data}
+            handoff={{ manual: state?.manual ?? null, gateway: state?.gateway ?? null }}
+          />
           <OrderSummary totals={data.totals} couponCode={data.couponCode} />
           <Link to="/shop" className="btn btn-primary btn-block">
             Continue shopping

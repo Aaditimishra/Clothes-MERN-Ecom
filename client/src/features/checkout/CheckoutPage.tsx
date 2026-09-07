@@ -1,20 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatMoney, PAYMENT_METHODS, type OrderView, type PaymentMethod } from '@shop/shared';
+import { formatMoney, type PaymentMethod, type PlaceOrderResponse } from '@shop/shared';
 
 import { ApiRequestError, request } from '../../lib/api';
 import { forgetCart, useCart } from '../../store/cart';
 import { useAuth } from '../../store/auth';
-import { useSettings } from '../../lib/store-config';
+import { usePaymentOptions, useSettings } from '../../lib/store-config';
 import { OrderSummary } from '../cart/OrderSummary';
-
-const PAYMENT_LABELS: Record<PaymentMethod, { title: string; note: string }> = {
-  upi: { title: 'UPI', note: 'Pay with any UPI app' },
-  card: { title: 'Card', note: 'Credit or debit' },
-  netbanking: { title: 'Net banking', note: 'All major banks' },
-  cod: { title: 'Cash on delivery', note: 'Handling fee applies' },
-};
 
 export const CheckoutPage = () => {
   const { cart, isLoading } = useCart();
@@ -24,19 +17,36 @@ export const CheckoutPage = () => {
   const queryClient = useQueryClient();
 
   const defaultAddress = customer?.addresses.find((address) => address.isDefault);
-  const [method, setMethod] = useState<PaymentMethod>('upi');
+  const options = usePaymentOptions();
+  /**
+   * No default until the options arrive.
+   *
+   * Defaulting to `upi` and correcting later would let someone on a slow
+   * connection submit a method this shop cannot honour, and be refused after
+   * filling in the whole form.
+   */
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const selected = method ?? options[0]?.method ?? null;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
   const { mutate, isPending } = useMutation({
     mutationFn: (body: unknown) =>
-      request<OrderView>('/checkout', { method: 'POST', body, withCart: true }),
-    onSuccess: (order) => {
+      request<PlaceOrderResponse>('/checkout', { method: 'POST', body, withCart: true }),
+    onSuccess: (result) => {
       // The server deleted the bag when it became an order. Clearing the cached
       // copy stops the shopper returning to a bag that looks full and a checkout
       // that refuses them.
       forgetCart(queryClient);
-      navigate(`/order/${order.reference}`, { state: { order } });
+      /**
+       * The payment instructions ride along in navigation state.
+       *
+       * They are also fetchable from the order, and the confirmation page does
+       * fetch them on a reload — but handing them over directly means the
+       * shopper who just paid sees where to send the money without waiting on a
+       * second round trip.
+       */
+      navigate(`/order/${result.order.reference}`, { state: result });
     },
     onError: (error: unknown) => {
       if (error instanceof ApiRequestError) {
@@ -56,6 +66,13 @@ export const CheckoutPage = () => {
     const form = new FormData(event.currentTarget);
     const text = (name: string) => String(form.get(name) ?? '').trim();
 
+    // Nothing to pay with. The server would refuse this anyway; refusing it here
+    // saves the shopper a round trip to be told so.
+    if (!selected) {
+      setFormError('Choose how you would like to pay');
+      return;
+    }
+
     mutate({
       shippingAddress: {
         fullName: text('fullName'),
@@ -67,7 +84,7 @@ export const CheckoutPage = () => {
         postalCode: text('postalCode'),
         country: 'IN',
       },
-      paymentMethod: method,
+      paymentMethod: selected,
       ...(customer ? {} : { email: text('email') }),
     });
   };
@@ -234,34 +251,50 @@ export const CheckoutPage = () => {
 
           <section>
             <h2 className="checkout-step">{customer ? '2' : '3'} · Payment</h2>
-            <div className="pay-methods">
-              {PAYMENT_METHODS.filter(
-                // A merchant who turns COD off in settings must not be offered it
-                // at checkout — the server would accept it and charge the fee.
-                (value) => value !== 'cod' || settings?.features.codEnabled !== false,
-              ).map((value) => (
-                <label key={value} className={`pay${method === value ? ' is-active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value={value}
-                    checked={method === value}
-                    onChange={() => setMethod(value)}
-                  />
-                  <span>
-                    <strong>{PAYMENT_LABELS[value].title}</strong>
-                    <span className="muted">
-                      {value === 'cod' && codFee > 0
-                        ? `${formatMoney({ amount: codFee, currency: 'INR' })} handling fee`
-                        : PAYMENT_LABELS[value].note}
+            {options.length === 0 ? (
+              <p className="field-error">
+                This shop cannot take payments at the moment. Please contact us before
+                ordering.
+              </p>
+            ) : (
+              <div className="pay-methods">
+                {options.map((option) => (
+                  <label
+                    key={option.method}
+                    className={`pay${selected === option.method ? ' is-active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={option.method}
+                      checked={selected === option.method}
+                      onChange={() => setMethod(option.method)}
+                    />
+                    <span>
+                      <strong>{option.title}</strong>
+                      <span className="muted">
+                        {option.method === 'cod' && codFee > 0
+                          ? `${formatMoney({ amount: codFee, currency: 'INR' })} handling fee`
+                          : option.note}
+                      </span>
                     </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="muted checkout-demo-note">
-              This is a demo shop — no payment is taken and no card details are collected.
-            </p>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {/*
+              Said before the order is placed, not after.
+              A shopper who expects to be charged on this page and is instead
+              asked to transfer the money themselves reads it as the payment
+              having failed, and either abandons the order or pays twice.
+            */}
+            {selected && options.find((o) => o.method === selected)?.provider === 'manual' ? (
+              <p className="muted checkout-demo-note">
+                You will be shown our UPI and bank details on the next page. Your order is
+                confirmed once we have seen the money arrive.
+              </p>
+            ) : null}
           </section>
         </div>
 
@@ -287,7 +320,7 @@ export const CheckoutPage = () => {
 
           <OrderSummary
             totals={
-              method === 'cod'
+              selected === 'cod'
                 ? {
                     ...cart.totals,
                     // Mirrors the server's COD surcharge so the total on screen
@@ -311,7 +344,7 @@ export const CheckoutPage = () => {
           <button
             type="submit"
             className="btn btn-primary btn-lg btn-block"
-            disabled={isPending || cart.issues.length > 0}
+            disabled={isPending || cart.issues.length > 0 || !selected}
           >
             {isPending ? 'Placing order…' : 'Place order'}
           </button>

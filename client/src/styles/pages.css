@@ -1062,3 +1062,81 @@
 
 .post-products { margin-top: 72px; }
 .post-foot { margin-top: 48px; }
+
+/* ------------------------------- paying ---------------------------------- */
+
+/*
+ * The panel a shopper reads when they have to send the money themselves.
+ *
+ * Given a border and its own ground because it is the one thing on the
+ * confirmation page that still needs doing — beside a summary and two links, an
+ * unstyled block of bank details reads as a receipt rather than an instruction.
+ */
+.pay-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+
+.pay-panel h3 {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 10px;
+}
+
+.pay-block { display: grid; gap: 10px; }
+.pay-block + .pay-block { padding-top: 16px; border-top: 1px solid var(--line); }
+
+.pay-field { display: grid; gap: 4px; }
+.pay-field .muted { font-size: 12px; }
+
+.pay-field-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+/*
+ * `break-all` because an account number has no spaces to break at, and a long
+ * one otherwise pushes the Copy button off the side of a phone.
+ */
+.pay-field-value code {
+  font-size: 13.5px;
+  word-break: break-all;
+}
+
+.pay-scan { font-size: 12.5px; text-align: center; margin: 0; }
+
+.pay-qr {
+  display: block;
+  margin: 0 auto;
+  width: 200px;
+  height: 200px;
+  /* White ground regardless of theme: a QR inverted by a dark surface will not
+     scan, and the failure looks like a broken camera rather than a styling bug. */
+  background: #fff;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.pay-claim {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.pay-claim .muted { font-size: 12px; }
+
+.btn-sm { padding: 4px 10px; font-size: 12px; min-height: 0; }

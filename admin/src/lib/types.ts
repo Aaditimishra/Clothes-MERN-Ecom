@@ -246,6 +246,7 @@ export interface StoreSettings {
     accountName: string;
     accountNumber: string;
     ifsc: string;
+    instructions: string;
   };
   promises: Array<{ title: string; copy: string }>;
   features: {
@@ -253,6 +254,8 @@ export interface StoreSettings {
     reviews: boolean;
     guestCheckout: boolean;
     codEnabled: boolean;
+    manualPaymentEnabled: boolean;
+    gatewayEnabled: boolean;
   };
 }
 

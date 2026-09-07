@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { formatMoney, type PaymentMethodView, type SavedAddress } from '@shop/shared';
+import {
+  formatMoney,
+  type OrderView,
+  type PaymentMethodView,
+  type SavedAddress,
+} from '@shop/shared';
 
 import { ApiRequestError, request } from '../../lib/api';
 import { useAuth } from '../../store/auth';
@@ -46,6 +51,22 @@ const cardLabel = (method: PaymentMethodView): string =>
   method.type === 'upi'
     ? (method.upiId ?? 'UPI')
     : `•••• ${method.last4 ?? '····'}`;
+
+/**
+ * What each payment state means to the person who placed the order.
+ *
+ * Written from the shopper's side, not the shop's: `verifying` is the shop's
+ * word for its own task, and "We are checking" is what the person waiting needs
+ * to read.
+ */
+const PAYMENT_STATUS_COPY: Record<OrderView['paymentStatus'], string> = {
+  paid: 'Paid',
+  pending: 'Due on delivery',
+  awaiting_payment: 'Awaiting your payment',
+  verifying: 'We are checking your payment',
+  failed: 'Expired — not paid in time',
+  refunded: 'Refunded',
+};
 
 export const AccountPage = () => {
   const { customer, isReady, signOut } = useAuth();
@@ -234,12 +255,27 @@ const OrdersTab = () => {
                       {order.paymentMethod.toUpperCase()} ·{' '}
                       <span
                         className={
-                          order.paymentStatus === 'paid' ? 'text-success' : 'text-warn'
+                          order.paymentStatus === 'paid'
+                            ? 'text-success'
+                            : order.paymentStatus === 'failed'
+                              ? 'text-danger'
+                              : 'text-warn'
                         }
                       >
-                        {order.paymentStatus === 'paid' ? 'Paid' : 'Due on delivery'}
+                        {PAYMENT_STATUS_COPY[order.paymentStatus]}
                       </span>
                     </p>
+                    {/*
+                      An order still owed money needs a way back to the page that
+                      says where to send it. Without this the shopper's only route
+                      is the confirmation email, and anyone who deleted it is
+                      stuck holding an order they cannot pay.
+                    */}
+                    {order.paymentStatus === 'awaiting_payment' ? (
+                      <Link to={`/order/${order.reference}`} className="btn btn-primary btn-sm">
+                        Pay now
+                      </Link>
+                    ) : null}
 
                     <dl className="summary">
                       <div>

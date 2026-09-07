@@ -119,7 +119,20 @@ missing = [k for k in PALETTE if not boot['settings']['branding'].get(k)]
 check('full 14-colour palette exposed', not missing, f'missing {missing}')
 check('typography + radius exposed', all(boot['settings']['branding'].get(k) for k in ['fontBody','fontDisplay','radius']))
 check('identity exposed', boot['settings']['identity']['gstin'] != '')
-check('payout exposed', boot['settings']['payment']['upiId'] != '')
+# The public bootstrap must NOT carry the shop's own bank details. Only the
+# merchant's instruction copy belongs here; a shopper holding an unpaid order
+# gets the account number from the payment endpoint after proving it is theirs.
+check('payment instructions exposed', boot['settings']['payment']['instructions'] != '')
+check('bank details NOT in public bootstrap',
+      'accountNumber' not in boot['settings']['payment']
+      and 'upiId' not in boot['settings']['payment'],
+      boot['settings']['payment'])
+check('payment options offered', len(boot['paymentOptions']) > 0, boot['paymentOptions'])
+check('no gateway configured → no card tile',
+      not any(o['method'] in ('card', 'netbanking') for o in boot['paymentOptions']),
+      [o['method'] for o in boot['paymentOptions']])
+check('UPI is handled by hand without a gateway',
+      next(o for o in boot['paymentOptions'] if o['method'] == 'upi')['provider'] == 'manual')
 check('taxonomy has 10 groups', len(boot['taxonomy']) == 10, list(boot['taxonomy']))
 check('sizes ordered xs..xxxl', [t['code'] for t in boot['taxonomy']['size']][:4] == ['xs','s','m','l'])
 
@@ -342,9 +355,22 @@ s, d = call('POST', '/checkout', {'shippingAddress': {**addr, 'postalCode':'99'}
 check('bad PIN blocks checkout', s == 400 and 'shippingAddress.postalCode' in d['error'].get('fields', {}), d)
 s, d = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'bitcoin'}, token=TOK, cart=CART2)
 check('unknown payment method → 400', s == 400, s)
-s, order = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'upi'}, token=TOK, cart=CART2)
-check('checkout 201', s == 201 and order['reference'].startswith('TL-'), s)
-check('payment marked paid for UPI', order['paymentStatus'] == 'paid')
+s, placed = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'upi'}, token=TOK, cart=CART2)
+check('checkout 201', s == 201 and placed['order']['reference'].startswith('TL-'), s)
+order = placed['order']
+# The whole point of the payment work: nothing is paid because someone chose UPI.
+check('UPI is NOT marked paid at checkout', order['paymentStatus'] == 'awaiting_payment',
+      order['paymentStatus'])
+check('an unpaid order is not confirmed', order['status'] == 'pending', order['status'])
+check('unpaid order gets a deadline', order['payment']['expiresAt'] is not None)
+MANUAL = placed['manual']
+check('transfer instructions returned', MANUAL is not None)
+check('UPI link carries the amount and the order number',
+      f"am={order['totals']['grandTotal']['amount'] / 100:.2f}" in MANUAL['upi']['link']
+      and order['reference'] in MANUAL['upi']['link'], MANUAL['upi']['link'])
+check('UPI QR rendered', MANUAL['upi']['qr'].startswith('data:image/png;base64,'))
+check('bank details returned to the buyer', MANUAL['bank']['accountNumber'] != '')
+check('no gateway handoff without a gateway', placed['gateway'] is None)
 # The signed-in shopper already had a merged guest bag, so the order holds more
 # than the item just added — check it CONTAINS the snapshot, not that it is first.
 line = next((l for l in order['lines'] if l['variantId'] == v['id']), None)
@@ -357,6 +383,8 @@ s, bag = call('GET', '/cart', cart=CART2, token=TOK)
 check('bag cleared after checkout', bag['itemCount'] == 0, bag['itemCount'])
 s, d = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'upi'}, token=TOK, cart=CART2)
 check('checking out an empty bag → 422', s == 422, s)
+s, d = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'card'}, token=TOK, cart=CART2)
+check('card with no gateway is refused', s in (422, 400), s)
 s, orders = call('GET', '/orders', token=TOK)
 check('order appears in history', any(o['reference'] == order['reference'] for o in orders))
 s, d = call('GET', f"/orders/{order['reference']}", token=TOK)
@@ -382,8 +410,14 @@ s, me3 = call('GET', '/auth/me', token=FTOK)
 check('same address is not duplicated', len(me3['addresses']) == 1, len(me3['addresses']))
 
 s, cod = call('POST', '/cart/items', {'variantId': v['id'], 'quantity': 1}, token=TOK)
-s, order2 = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'cod'}, token=TOK, cart=cod['id'])
+s, placed2 = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'cod'}, token=TOK, cart=cod['id'])
+order2 = placed2['order']
 check('COD stays pending', order2['paymentStatus'] == 'pending', order2['paymentStatus'])
+# Cash on delivery is the one case that IS confirmed unpaid: the money arrives
+# at the door, so the order ships on trust.
+check('COD is confirmed straight away', order2['status'] == 'confirmed', order2['status'])
+check('COD has no payment deadline', order2['payment']['expiresAt'] is None)
+check('COD needs no transfer instructions', placed2['manual'] is None)
 check('COD surcharge applied', order2['totals']['shipping']['amount'] >= 4900, order2['totals']['shipping'])
 
 section('11. Reviews')
@@ -546,7 +580,8 @@ check('the cap binds, not the percentage', capped['totals']['couponDiscount']['a
       f"got {capped['totals']['couponDiscount']['amount']}, 30% would be {raw_pct}")
 s, cbefore = call('GET', '/admin/coupons', token=ATOK)
 used_before = next(c for c in cbefore if c['code'] == 'SUITECAP')['usageCount']
-s, corder = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'upi'}, token=TOK, cart=cbag['id'])
+s, cplaced = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'upi'}, token=TOK, cart=cbag['id'])
+corder = cplaced['order'] if s == 201 else cplaced
 check('order records the coupon', corder['couponCode'] == 'SUITECAP', corder['couponCode'])
 check('order snapshots the discount', corder['totals']['couponDiscount']['amount'] == 20000)
 s, cafter = call('GET', '/admin/coupons', token=ATOK)
@@ -812,6 +847,99 @@ call('PUT', '/admin/auth/profile', {'name': original}, token=ATOK)
 check('the name is restored for the next run',
       call('GET', '/admin/auth/me', token=ATOK)[1]['staff']['name'] == original)
 
+
+section('21. Paying — by hand, and the rules that stop it going wrong')
+
+# A fresh order that owes money, to walk the whole lifecycle on.
+s, pv = call('GET', '/catalog/products/oxford-button-down-shirt')
+pvar = next(x for x in pv['variants'] if x['isAvailable'])
+stock_before = pvar['stockQuantity']
+s, pbag = call('POST', '/cart/items', {'variantId': pvar['id'], 'quantity': 1}, token=TOK)
+s, pplaced = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod': 'upi'},
+                  token=TOK, cart=pbag['id'])
+pplaced = must('order placed for the payment walk', s, pplaced)
+PREF = pplaced['order']['reference']
+PID_ORDER = pplaced['order']['id']
+
+# Instructions must be re-fetchable: a shopper who reloads, or opens the order
+# from their email on another device, has no checkout response to read.
+s, again = call('GET', f'/orders/{PREF}/payment', token=TOK)
+check('transfer details can be fetched again', s == 200 and again['manual']['upi']['id'] != '', s)
+s, d = call('GET', f'/orders/{PREF}/payment?email=stranger@example.test')
+check("someone else cannot read the shop's account details", s == 404, s)
+
+s, d = call('POST', f'/orders/{PREF}/payment/claim', {'reference': '123'}, token=TOK)
+check('a too-short reference is refused', s == 400 and 'reference' in d['error']['fields'], d)
+s, claimed = call('POST', f'/orders/{PREF}/payment/claim',
+                  {'reference': '4021 8899 1234'}, token=TOK)
+claimed = must('payment claimed', s, claimed)
+check('a claim is NOT a payment', claimed['paymentStatus'] == 'verifying', claimed['paymentStatus'])
+check('the reference is normalised', claimed['payment']['reference'] == '402188991234',
+      claimed['payment']['reference'])
+check('claiming clears the expiry so a paid order is never swept',
+      claimed['payment']['expiresAt'] is None)
+check('the order is still not confirmed', claimed['status'] == 'pending', claimed['status'])
+
+s, queue = call('GET', '/admin/payments', token=ATOK)
+check('the claim reaches the payment queue',
+      any(o['reference'] == PREF for o in queue['items']), queue['total'])
+check('the queue counts what is waiting', queue['counts'].get('verifying', 0) >= 1, queue['counts'])
+s, found = call('GET', f'/admin/payments?search=402188991234', token=ATOK)
+check('a payment is findable by the UTR the shopper quoted',
+      any(o['reference'] == PREF for o in found['items']), found['total'])
+
+# Confirming money is its own permission, deliberately not part of order.manage.
+s, analyst = call('POST', '/admin/auth/sign-in',
+                  {'email': 'analyst@threadline.shop', 'password': 'threadline-admin-2026'})
+NTOK = analyst['token']
+s, d = call('POST', f'/admin/payments/{PID_ORDER}/verify', token=NTOK)
+check('an analyst cannot confirm a payment', s == 403 and 'payment.verify' in d['error']['message'], d)
+s, d = call('POST', f'/admin/payments/{PID_ORDER}/reject', {'reason': 'no'}, token=ATOK)
+check('sending a claim back needs a reason the shopper can act on', s == 400, s)
+
+# Rejected, then re-claimed: a mistyped UTR must not kill the order.
+s, sent_back = call('POST', f'/admin/payments/{PID_ORDER}/reject',
+                    {'reason': 'Nothing matching that reference reached our account.'}, token=ATOK)
+sent_back = must('claim sent back', s, sent_back)
+check('a rejected claim reopens for payment',
+      sent_back['paymentStatus'] == 'awaiting_payment', sent_back['paymentStatus'])
+check('the shopper is told why', sent_back['payment']['rejectionReason'].startswith('Nothing'))
+check('rejecting restarts the stock clock', sent_back['payment']['expiresAt'] is not None)
+s, reclaimed = call('POST', f'/orders/{PREF}/payment/claim',
+                    {'reference': '402188995555'}, token=TOK)
+check('the shopper can quote a corrected reference', reclaimed['paymentStatus'] == 'verifying')
+check('repeat claims are counted', reclaimed['payment']['claimCount'] == 2,
+      reclaimed['payment']['claimCount'])
+
+s, paid = call('POST', f'/admin/payments/{PID_ORDER}/verify', token=ATOK)
+paid = must('payment verified', s, paid)
+check('verifying marks it paid', paid['paymentStatus'] == 'paid', paid['paymentStatus'])
+check('paying is what confirms the order', paid['status'] == 'confirmed', paid['status'])
+check('who confirmed it is recorded', paid['payment']['verifiedBy'] is not None)
+
+# Idempotency. A double-tapped button and a retried webhook arrive here too.
+s, twice = call('POST', f'/admin/payments/{PID_ORDER}/verify', token=ATOK)
+check('verifying twice is a no-op, not a second payment',
+      s == 200 and twice['payment']['verifiedAt'] == paid['payment']['verifiedAt'],
+      f"{paid['payment']['verifiedAt']} → {twice['payment']['verifiedAt']}")
+s, d = call('POST', f'/orders/{PREF}/payment/claim', {'reference': '999988887777'}, token=TOK)
+check('a paid order refuses a further claim', s == 422 and 'already paid' in d['error']['message'], d)
+
+# The rule that matters most: an order whose stock went back on sale can never
+# be marked paid, on any path.
+s, cbag2 = call('POST', '/cart/items', {'variantId': pvar['id'], 'quantity': 1}, token=TOK)
+s, cplaced2 = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod': 'bank_transfer'},
+                   token=TOK, cart=cbag2['id'])
+CREF = cplaced2['order']['reference']
+CID = cplaced2['order']['id']
+call('POST', f'/orders/{CREF}/payment/claim', {'reference': '555544443333'}, token=TOK)
+s, _ = call('PATCH', f'/admin/orders/{CID}', {'status': 'cancelled'}, token=ATOK)
+s, d = call('POST', f'/admin/payments/{CID}/verify', token=ATOK)
+check('a CANCELLED order cannot be marked paid', s == 422 and 'cancelled' in d['error']['message'], d)
+
+# The webhook is authenticated by its signature over the raw body, nothing else.
+s, d = call('POST', '/payments/webhook/razorpay', {'event': 'payment.captured'})
+check('an unsigned webhook is refused', s == 401, s)
 
 print(f'\n{"="*62}\n  PASSED {passed}   FAILED {failed}\n{"="*62}')
 for f in FAILS: print('  ✗', f)

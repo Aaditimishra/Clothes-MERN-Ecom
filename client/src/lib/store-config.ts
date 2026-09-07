@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { Money } from '@shop/shared';
+import type { Money, PaymentOptionView } from '@shop/shared';
 
 import { request } from './api';
 
@@ -56,20 +56,23 @@ export interface StoreSettings {
   taxBands: Array<{ rate: number; minUnitAmount: number; maxUnitAmount: number | null; label: string }>;
   branding: Branding;
   identity: { legalName: string; gstin: string; addressLine: string };
-  payment: {
-    upiId: string;
-    upiName: string;
-    bankName: string;
-    accountName: string;
-    accountNumber: string;
-    ifsc: string;
-  };
+  /**
+   * Only the merchant's instruction copy.
+   *
+   * The UPI id and bank details deliberately do NOT arrive here. The bootstrap
+   * is public, and the shop's account number has no use in the storefront
+   * chrome — a shopper holding an unpaid order fetches it from the payment
+   * endpoint after proving the order is theirs.
+   */
+  payment: { instructions: string };
   promises: Array<{ title: string; copy: string }>;
   features: {
     wishlist: boolean;
     reviews: boolean;
     guestCheckout: boolean;
     codEnabled: boolean;
+    manualPaymentEnabled: boolean;
+    gatewayEnabled: boolean;
   };
 }
 
@@ -78,6 +81,15 @@ interface Bootstrap {
   taxonomy: Record<string, TaxonomyTerm[]>;
   /** Published content pages, grouped by the footer column they belong to. */
   footer: Record<string, Array<{ slug: string; title: string }>>;
+  /**
+   * The ways to pay this shop can actually honour, in the order to show them.
+   *
+   * Server-decided. Whether a card can be taken depends on gateway keys living
+   * in the API's environment, which a browser has no way to know and must not
+   * be told — so the storefront draws what it is given rather than filtering a
+   * hardcoded list and hoping the server agrees.
+   */
+  paymentOptions: PaymentOptionView[];
 }
 
 /**
@@ -97,3 +109,14 @@ export const useStoreConfig = () =>
   });
 
 export const useSettings = (): StoreSettings | null => useStoreConfig().data?.settings ?? null;
+
+/**
+ * The payment tiles to draw at checkout.
+ *
+ * Empty until the bootstrap lands, and empty is meaningful: a shop with cash on
+ * delivery off, no transfer details filled in and no gateway cannot be paid at
+ * all, and the checkout says so rather than showing a payment step with nothing
+ * in it.
+ */
+export const usePaymentOptions = (): PaymentOptionView[] =>
+  useStoreConfig().data?.paymentOptions ?? [];

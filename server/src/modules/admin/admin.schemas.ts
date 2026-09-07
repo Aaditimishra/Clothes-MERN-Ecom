@@ -246,6 +246,7 @@ export const settingsSchema = z.object({
         .toUpperCase()
         .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid 11-character IFSC')
         .or(z.literal('')),
+      instructions: z.string().trim().max(300),
     })
     .partial()
     .optional(),
@@ -258,6 +259,8 @@ export const settingsSchema = z.object({
       wishlist: z.boolean(),
       reviews: z.boolean(),
       guestCheckout: z.boolean(),
+      manualPaymentEnabled: z.boolean(),
+      gatewayEnabled: z.boolean(),
       codEnabled: z.boolean(),
     })
     .optional(),

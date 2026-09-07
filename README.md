@@ -30,7 +30,7 @@ npm run dev            # API :4000 · shop :5173 · admin :5174
 | [docs/PROJECT.md](docs/PROJECT.md) | Architecture, every decision and its reason, API, data model |
 | [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) | What a merchant can change, and where |
 | [docs/BUGS-FIXED.md](docs/BUGS-FIXED.md) | The 27 bugs found while building, with root causes |
-| [docs/TESTING.md](docs/TESTING.md) | How to run the 286-check suite and what it covers |
+| [docs/TESTING.md](docs/TESTING.md) | How to run the 325-check suite and what it covers |
 
 You need MongoDB running locally (`brew services start mongodb-community`) or any
 `MONGODB_URI`.
@@ -47,7 +47,7 @@ You need MongoDB running locally (`brew services start mongodb-community`) or an
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
 | `npm run build` | Server bundle + both client builds |
-| `npm run smoke` | 233 end-to-end checks against a live, seeded server |
+| `npm run smoke` | 325 end-to-end checks against a live, seeded server |
 
 ---
 
@@ -161,8 +161,15 @@ offending input rather than printing a sentence at the top of the page:
 
 ## Known limits of the demo
 
-- **No payment gateway.** Card, UPI and netbanking are marked `paid` on placement;
-  COD stays `pending`. `order.service.ts` says where the real call goes.
+- **No gateway account, so payments are confirmed by hand.** The shop shows its
+  UPI id as a `upi://pay` link with the amount and order number filled in, plus
+  a QR and bank details. The shopper transfers, types the reference back, and
+  someone at the shop checks the statement before the order is confirmed. This
+  is what a shop without a gateway actually does, not a stub.
+- **Razorpay is wired and dormant.** Set `RAZORPAY_KEY_ID` and
+  `RAZORPAY_KEY_SECRET`, then turn it on in Store settings → Features. Both are
+  required, so nobody can toggle their way into a checkout with no credentials
+  behind it. Card and net banking only appear once it is on.
 - **Product photography is licensed stock, matched by hand.** Every colourway
   names its own photographs in `seed/catalogue.ts`, and each was checked against
   the swatch it sits under — a "White" swatch opens on a white garment. Some

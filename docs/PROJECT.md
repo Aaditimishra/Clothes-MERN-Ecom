@@ -48,7 +48,7 @@ Full admin walkthrough: [ADMIN-GUIDE.md](./ADMIN-GUIDE.md)
 | `npm run seed` | Wipes and rebuilds the demo shop |
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
-| `npm run smoke` | 286 end-to-end checks against a live, freshly seeded server |
+| `npm run smoke` | 325 end-to-end checks against a live, freshly seeded server |
 | `npm run build` | Server bundle + both client builds |
 
 ---
@@ -66,12 +66,12 @@ docs/      This file, the admin guide, the bug log, the testing notes
 
 | Workspace | Files | Lines |
 | --- | --- | --- |
-| `shared` | 10 | 638 |
-| `server` | 73 | 11,119 |
-| `client` | 44 | 5,557 |
-| `admin` | 30 | 6,695 |
+| `shared` | 10 | 796 |
+| `server` | 79 | 12,752 |
+| `client` | 45 | 6,085 |
+| `admin` | 31 | 7,011 |
 
-97 HTTP endpoints across 12 collections.
+105 HTTP endpoints across 12 collections.
 
 `shared/` is the load-bearing piece. The API's responses and both clients' props
 are typed against the same file, so renaming a field server-side stops the
@@ -247,6 +247,109 @@ cannot answer a customer question.
 
 ---
 
+## 4a. How the shop gets paid
+
+Checkout used to write `paymentStatus: 'paid'` for anything that was not cash on
+delivery. Nothing had moved and nothing had been checked — picking UPI was
+enough to be marked paid — so the shop would have packed and shipped goods it
+was never paid for and reported the revenue on its own dashboard. It reads as
+working right up until the first reconciliation.
+
+There are two ways to be paid now, and neither trusts the shopper.
+
+### By hand — the default, and what a shop without a gateway actually does
+
+| Step | State | Who acts |
+| --- | --- | --- |
+| Order placed | `pending` / `awaiting_payment` | — |
+| Shopper transfers and quotes the reference | `pending` / `verifying` | Shopper |
+| Statement checked, money found | `confirmed` / `paid` | Staff (`payment.verify`) |
+| Statement checked, nothing there | `pending` / `awaiting_payment` + a reason | Staff |
+| Nobody paid within the window | `cancelled` / `failed`, stock released | The sweeper |
+
+**An unpaid order is not confirmed.** Confirming it would put goods nobody has
+paid for into the packing queue. Cash on delivery is the exception: the money
+arrives at the door, so it is confirmed and shipped on trust.
+
+**The UPI link carries the amount and the order number.** A shopper retyping
+₹2,499 into their own app types ₹2,490 often enough that the shop spends its
+evenings matching short payments to orders. The same string is rendered as a QR,
+because half the people reaching that page are on a laptop where a `upi://` link
+opens nothing.
+
+**A claim is not a payment.** `verifying` exists because "I have sent it" and
+"the money is here" are different assertions and only one of them is evidence. A
+shop that trusted the first would ship to anyone willing to type twelve digits.
+
+**Rejecting reopens the order rather than killing it.** A mistyped UTR is the
+common case, and cancelling would make a shopper who genuinely paid place the
+order again at a price that may have moved.
+
+**Unpaid orders hold reserved stock, so a sweeper gives it back** after
+`PAYMENT_WINDOW_HOURS` (24 by default). The order survives as `failed` rather
+than being deleted — the shop needs to see what it nearly sold. Claiming clears
+the deadline, so an order whose money may already be sitting unread in the
+account is never swept away.
+
+### Through Razorpay — implemented, and off
+
+Inert without `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`, and still off behind
+a settings switch even with them. Both are required, because a merchant must not
+be able to toggle their way into a checkout with no credentials behind it. Card
+and net banking simply do not appear as options until it is on; there is no way
+to take a card by hand, so offering one would be a lie.
+
+Spoken to over its REST API — three calls and two HMACs — rather than through an
+SDK, so a shop taking bank transfers carries no dependency for a gateway it does
+not use.
+
+**Three things are checked on the way back, and dropping any one is a way to be
+robbed:**
+
+1. **The signature is genuine**, compared with `timingSafeEqual` rather than
+   `===`, which returns at the first differing byte and is measurable.
+2. **It was issued for THIS order.** A valid signature proves Razorpay issued
+   those values for *some* order of this merchant's — it says nothing about
+   which. Without binding it to the gateway order id stored on the order being
+   paid, a shopper can pay ₹50, replay the payment id, order id and signature
+   against a ₹50,000 order, and every value verifies. The goods ship free.
+3. **The amount matches.** A signature says nothing about whether the payment
+   succeeded or was partial, so the gateway is asked what it actually captured
+   and the answer is compared with the total the server computed.
+
+The webhook is the authority; the browser handoff is a convenience so the
+shopper sees "paid" at once rather than staring at "awaiting payment". Someone
+who pays and immediately closes the tab never returns the handoff at all.
+
+**The webhook mounts ahead of `express.json`.** Its signature covers the raw
+bytes, and `express.json` marks a request as parsed — after which the route's own
+`raw()` silently does nothing and hands back a re-serialised object whose digest
+can never match. That ordering is load-bearing: moving it rejects every genuine
+webhook as a forgery, and presents as payments that never confirm.
+
+### One rule, one place
+
+`lib/payments/policy.ts` decides whether money may still be taken. A cancelled or
+returned order has put its stock back on sale and can never be marked paid; an
+already-settled one cannot be settled twice. The manual verifier, the browser
+handoff and the webhook all ask the same function, because a rule written out at
+one of three call sites is a rule that will be missed at the fourth.
+
+Settlement is idempotent and guarded **inside the query filter**, not by a
+read-then-check above it — so a retried webhook and a double-tapped Verify button
+confirm one payment rather than two.
+
+**`payment.verify` is its own permission**, separate from `order.manage` for the
+same reason `data.export` is separate from `customer.view`: typing a tracking
+number and declaring a ₹40,000 transfer received are different acts, and the
+second is the only thing in this panel that cannot be undone by editing a field
+back.
+
+**The shop's own bank details are not in the public bootstrap.** They reach a
+shopper holding an unpaid order, after they have proved the order is theirs, and
+nobody else.
+
+
 ## 5. API surface
 
 ### Storefront (public)
@@ -262,6 +365,11 @@ cannot answer a customer question.
 | `GET·POST·PATCH·DELETE /api/cart…` | Bag and coupon |
 | `POST /api/auth/sign-up · sign-in`, `GET /api/auth/me` | Shopper accounts |
 | `POST /api/checkout`, `GET /api/orders`, `GET /api/orders/:reference` | Orders |
+| `GET /api/orders/:reference/payment` | Where to send the money, fetched again on a reload |
+| `POST /api/orders/:reference/payment/claim` | "I have transferred it" — a claim, not a payment |
+| `GET /api/orders/:reference/payment/status` | Polled while a gateway payment is outstanding |
+| `POST /api/orders/:reference/payment/gateway/verify` | The browser's handoff after a Razorpay checkout |
+| `POST /api/payments/webhook/razorpay` | The gateway, signed over the raw body. Mounted before the JSON parser |
 | `GET·POST /api/products/:id/reviews` | Reviews |
 | `/api/account/addresses…`, `/api/account/wishlist…` | Account |
 | `PUT /api/account/profile`, `PUT /api/account/password` | Profile |
@@ -282,6 +390,8 @@ Admin-only extras beyond CRUD:
 | `PUT /api/admin/auth/profile`, `PUT /api/admin/auth/password` | Your own account. Ignores `role`, `permissions` and `isActive` by design |
 | `/api/admin/journal…`, `/api/admin/pages…` | Blog and footer pages, gated on `cms.manage` |
 | `GET /api/admin/notifications`, `GET /api/admin/emails` | The staff feed and the outbox |
+| `GET /api/admin/payments` | The queue of transfers waiting on a human, with per-state counts |
+| `POST /api/admin/payments/:id/verify` · `/reject` | Confirm or send back. Needs `payment.verify` |
 
 ### Admin (staff token required)
 
@@ -318,7 +428,7 @@ than printing a sentence at the top of the page:
 | `size_charts` | Reusable measurement tables |
 | `media` | Uploaded and external images |
 | `carts` | Guest and customer bags (30-day TTL index) |
-| `orders` | Snapshotted line items and totals |
+| `orders` | Snapshotted line items and totals, and the payment trail |
 | `customers` | Shoppers, addresses, wishlist |
 | `reviews` | One per customer per product (unique index) |
 | `coupons` | Discount codes and their usage ledger |
@@ -337,14 +447,15 @@ Seeded: 21 products · 77 vocabulary terms · 11 categories · 4 size charts ·
 | `npm run typecheck` | **0 errors** across 4 workspaces |
 | `npm run lint` | **0 errors** (warnings are intentional non-null assertions) |
 | `npm run build` | Passes — server bundle, shop, admin |
-| `npm run smoke` | **286 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
+| `npm run smoke` | **325 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
 | Bugs found and fixed | **27**, each with a regression test — see [BUGS-FIXED.md](./BUGS-FIXED.md) |
 | Seed | 20 products · 195 variants · 76 vocabulary terms · 4 size charts · 42 images · 130 reviews · 5 content pages · 3 journal entries · a seeded notification feed and outbox |
 
 ### Known limits of the demo
 
-- **No payment gateway.** Card, UPI and netbanking are marked `paid` on placement;
-  COD stays `pending`. `order.service.ts` says where the real call goes.
+- **No gateway account, so payments are confirmed by hand.** See §4a. Razorpay
+  is implemented and dormant; it needs keys in the environment and a switch in
+  Store settings before any card can be taken.
 - **Product photography is licensed stock, matched by hand.** Every colourway was
   checked against the swatch it sits under. Some colourways have one photograph
   rather than three, which is the honest outcome — padding a gallery with another

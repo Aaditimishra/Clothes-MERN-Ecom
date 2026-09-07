@@ -375,6 +375,19 @@ export const SettingsPage = () => {
               credential that can move money.
             </p>
 
+            <Field
+              label="What the shopper is told"
+              hint="Shown beside your transfer details on the order page."
+            >
+              <input
+                className="input"
+                value={draft.payment.instructions}
+                onChange={(event) =>
+                  set('payment', { ...draft.payment, instructions: event.target.value })
+                }
+              />
+            </Field>
+
             <div className="grid-2">
               <Field label="UPI id" hint="e.g. shop@okhdfcbank">
                 <input
@@ -649,12 +662,25 @@ export const SettingsPage = () => {
             <h2>Features</h2>
           </div>
           <div className="card-body">
+            {/*
+              Said here rather than discovered later: the gateway switch is one
+              of two conditions. Without keys in the API's environment it stays
+              off however this box is ticked, because a merchant must not be
+              able to toggle their way into a checkout with no credentials
+              behind it.
+            */}
+            <p className="notice">
+              The gateway also needs its API keys set on the server. Until they are, that
+              switch has no effect and the shop keeps taking transfers by hand.
+            </p>
             {(
               [
                 ['wishlist', 'Wishlist'],
                 ['reviews', 'Customer reviews'],
                 ['guestCheckout', 'Guest checkout'],
                 ['codEnabled', 'Cash on delivery'],
+                ['manualPaymentEnabled', 'UPI and bank transfer (you confirm each one)'],
+                ['gatewayEnabled', 'Payment gateway (Razorpay)'],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="switch">

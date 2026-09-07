@@ -12,6 +12,7 @@ import { EmailsPage } from './pages/EmailsPage';
 import { MediaPage } from './pages/MediaPage';
 import { NotificationsPage, useNotifications } from './pages/NotificationsPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { PaymentsPage } from './pages/PaymentsPage';
 import { ProductEditorPage } from './pages/ProductEditorPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -45,6 +46,7 @@ const NAV: NavEntry[] = [
   { to: '/media', label: 'Media', permission: 'catalog.view', group: 'Catalogue' },
   { to: '/content', label: 'Journal & pages', permission: 'catalog.view', group: 'Catalogue' },
   { to: '/orders', label: 'Orders', permission: 'order.view', group: 'Sales' },
+  { to: '/payments', label: 'Payments', permission: 'order.view', group: 'Sales' },
   { to: '/customers', label: 'Customers', permission: 'customer.view', group: 'Sales' },
   { to: '/coupons', label: 'Coupons', permission: 'promotion.manage', group: 'Sales' },
   { to: '/reviews', label: 'Reviews', permission: 'review.moderate', group: 'Sales' },
@@ -256,6 +258,14 @@ const Shell = () => {
             element={
               <RequirePermission permission="order.view">
                 <OrdersPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/payments"
+            element={
+              <RequirePermission permission="order.view">
+                <PaymentsPage />
               </RequirePermission>
             }
           />

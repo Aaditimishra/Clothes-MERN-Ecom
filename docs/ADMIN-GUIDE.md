@@ -217,6 +217,35 @@ session can read is the wrong place for a credential that can move money.
 GSTIN and IFSC are format-checked: a wrong GSTIN on an invoice is a compliance
 problem rather than a typo.
 
+**Fill these in before turning transfers on.** They are what a shopper is shown
+when they have to pay you, and the shop cannot offer a transfer without at least
+a UPI id or an account number and IFSC. "What the shopper is told" is your own
+copy, printed beside the details — asking for the order number in the payment
+note is what makes a bank statement matchable to an order.
+
+These details are **not** in the shop's public configuration. They reach a
+shopper holding an unpaid order, once they have proved the order is theirs, and
+nobody else.
+
+### Which ways to pay you offer
+
+Three switches in **Features**, and the storefront shows exactly what they allow:
+
+| Switch | What it offers |
+| --- | --- |
+| Cash on delivery | The courier collects. A handling fee applies |
+| UPI and bank transfer | The shopper transfers and you confirm each one |
+| Payment gateway (Razorpay) | Card, UPI and net banking, confirmed automatically |
+
+**The gateway switch is one of two conditions.** It also needs its API keys set
+on the server. Until they are, ticking the box changes nothing and the shop keeps
+taking transfers by hand — deliberately, so nobody can produce a checkout with no
+credentials behind it.
+
+Card and net banking do not appear at all without the gateway. There is no way to
+take a card by hand, so offering the option would be a lie the shopper only
+discovers after filling in the whole form.
+
 ### About the GST bands
 
 Apparel GST in India is **banded, per unit**: a garment under ₹1,000 is 5%, at or
@@ -249,6 +278,49 @@ customer's name field is somewhere an attacker can put one.
 customers one at a time to answer a ticket and downloading every customer's email,
 phone and lifetime value are different acts with different risk — so support staff
 get the first and not the second. Grant it per person in Staff.
+
+## Payments
+
+The queue of transfers waiting on **you** to look at a bank statement. Separate
+from Orders because it is a different job at a different time: Orders is "what do
+I pack today", this is "did the money arrive".
+
+**To check** is the tab that matters — every shopper there has said they paid and
+is waiting on you. The others are for reconciling.
+
+Open one and you see the amount, the reference the shopper quoted, when they
+quoted it, and how many times they have tried. Then:
+
+- **The money is there** — marks it paid and confirms the order, so it joins the
+  packing queue. Your name is recorded against it.
+- **Not received** — sends the claim back with a reason the shopper reads on
+  their order page, and reopens the order so they can correct the reference. It
+  does not cancel the order: a mistyped UTR is the common case, and cancelling
+  would make someone who genuinely paid order again at a price that may have
+  moved.
+
+**Check the statement before confirming.** This is the one action in the panel
+that cannot be undone by editing a field back — it ships the goods and books the
+revenue.
+
+### Unpaid orders give their stock back
+
+An order holds its stock from the moment it is placed, so one nobody pays for
+takes a garment off sale. After 24 hours it is cancelled and the stock returns.
+The order stays visible as expired rather than disappearing, so you can see what
+you nearly sold.
+
+A shopper who has said they paid is **never** swept away — their money may
+already be sitting in the account unread. Those wait for you.
+
+### Who can confirm money
+
+`payment.verify`, and it is deliberately not part of `order.manage`. Typing a
+tracking number and declaring a ₹40,000 transfer received are different acts.
+**operations** and **owner** hold it; support and analyst can read the queue and
+not act on it.
+
+---
 
 ## Orders
 
@@ -321,7 +393,7 @@ characters. The role decides the starting permissions.
 | --- | --- |
 | **owner** | Everything, including settings and staff |
 | **merchandiser** | Catalogue, categories, attributes, media, reviews |
-| **operations** | Orders, stock, customers |
+| **operations** | Orders, stock, customers, **confirming payments** |
 | **support** | Read the catalogue, orders and customers; moderate reviews |
 | **analyst** | Read everything **and** export CSV |
 

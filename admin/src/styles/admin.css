@@ -864,3 +864,26 @@ a.sidebar-user.active strong { color: var(--brand); }
   max-height: 220px;
   object-fit: cover;
 }
+
+/* ------------------------------ payments --------------------------------- */
+
+/* A single column of fields and actions, for dialogs that read top to bottom
+   rather than filling a grid. */
+.stack { display: grid; gap: 14px; }
+
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The count beside a tab label. Sized to stay legible at three digits — a shop
+   that has left two hundred transfers unchecked most needs to see the number. */
+.tab-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.06));
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tab.is-active .tab-count { background: var(--brand); color: #fff; }

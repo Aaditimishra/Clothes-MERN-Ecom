@@ -521,6 +521,8 @@ const seed = async (): Promise<void> => {
       accountName: 'Threadline Retail Private Limited',
       accountNumber: '50200012345678',
       ifsc: 'HDFC0001234',
+      instructions:
+        'Quote your order number in the payment note so we can match it to your order.',
     },
     promises: [
       { title: 'Free delivery over ₹1,499', copy: 'Dispatched within 24 hours.' },
@@ -528,7 +530,21 @@ const seed = async (): Promise<void> => {
       { title: 'Natural fibres', copy: 'Linen, cotton, merino and silk.' },
       { title: 'Fit-checked reviews', copy: 'Real sizing notes from real orders.' },
     ],
-    features: { wishlist: true, reviews: true, guestCheckout: true, codEnabled: true },
+    features: {
+      wishlist: true,
+      reviews: true,
+      guestCheckout: true,
+      codEnabled: true,
+      manualPaymentEnabled: true,
+      /**
+       * Off, because the seed has no Razorpay account behind it.
+       *
+       * Seeding it on would produce a shop whose card tile opens a checkout
+       * that cannot be verified — which looks like a broken gateway rather
+       * than an absent one.
+       */
+      gatewayEnabled: false,
+    },
   });
 
   /* --------------------------------- staff ------------------------------- */
