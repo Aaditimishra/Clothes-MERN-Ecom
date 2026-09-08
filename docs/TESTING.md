@@ -8,7 +8,12 @@ npm run dev:test                #              servers, credential limit raised
 npm run smoke                   # terminal 2 — run ONCE
 ```
 
-**351 checks, 0 failures.**
+**384 API checks and 61 browser checks, 0 failures.**
+
+```bash
+npm run smoke      # the API, against a live seeded server
+npm run smoke:ui   # the admin, in a real browser
+```
 
 ### Why `dev:test` and not `dev`
 
@@ -43,6 +48,32 @@ Several assertions also depend on known stock levels, so reseed first.
 
 ---
 
+## Why there is a browser suite as well
+
+The API suite could not have caught what shipped once: every endpoint was
+correct, and the admin was a blank page. A client had cast a paged envelope to
+an array, and React threw on the first `.filter`. TypeScript cannot see through
+`api<Thing[]>(...)` — the cast is a promise the compiler believes.
+
+`npm run smoke:ui` drives the Chrome already on the machine. It signs in, loads
+all eighteen screens, and fails on a page error, a console error or a `.main`
+with nothing in it.
+
+**Loading a route is not enough, and that gap was real.** The Categories list
+rendered perfectly with the bug in it, because the broken call sat inside the
+edit dialog — the screen only went blank when somebody pressed "New category".
+So the suite presses the buttons: it opens every create dialog, opens a product
+for editing and checks its dropdowns actually have options in them, opens the
+payment dialog and measures that it is centred, changes the rows-per-page and
+checks the row count follows, pages forward and checks the rows change, folds a
+nav group and checks the whole group goes.
+
+Each of those was written by breaking the thing first and confirming the check
+went red. Two early versions of the fold check passed on a working fold *and*
+would have passed on a broken one — counting `rect.height > 0` misses that
+`overflow: hidden` clips a child without changing its rectangle. A check that
+cannot fail is worse than no check, because it is believed.
+
 ## What it covers
 
 | # | Section | Checks |
@@ -59,6 +90,7 @@ Several assertions also depend on known stock levels, so reseed first.
 | 10 | Checkout | Validation, stock decrement, bag clearing, guest lookup by email, COD surcharge, address auto-save + dedupe |
 | 11 | Reviews | Summary agrees with the card, duplicate rejection, rating recalculation, name abbreviation |
 | 12 | Admin auth | Customer tokens rejected, per-role permission enforcement |
+| 23 | Every list is paged | All fourteen answer with the same envelope, honour `pageSize`, cap at 100, and consecutive pages do not overlap |
 | 13 | Dashboard | The window is a parameter, days bucket in the shop timezone, the series covers quiet days too, the average divides by paid orders, and a trend with no comparison is null rather than a number |
 | 22 | Stock on ending an order | Cancelling restocks and cannot restock twice; a shipped cancel does not; a return restocks only when the merchant says so |
 | 21 | Paying | The whole manual lifecycle — claim, send back, re-claim, verify — plus the refusals: an analyst cannot confirm money, a cancelled order cannot be marked paid, verifying twice is a no-op, an unsigned webhook is rejected |

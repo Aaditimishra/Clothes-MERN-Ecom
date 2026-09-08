@@ -48,7 +48,8 @@ Full admin walkthrough: [ADMIN-GUIDE.md](./ADMIN-GUIDE.md)
 | `npm run seed` | Wipes and rebuilds the demo shop |
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
-| `npm run smoke` | 351 end-to-end checks against a live, freshly seeded server |
+| `npm run smoke` | 384 end-to-end checks against a live, freshly seeded server |
+| `npm run smoke:ui` | 61 checks that load every admin screen in a real browser |
 | `npm run build` | Server bundle + both client builds |
 
 ---
@@ -485,7 +486,8 @@ Seeded: 21 products · 77 vocabulary terms · 11 categories · 4 size charts ·
 | `npm run typecheck` | **0 errors** across 4 workspaces |
 | `npm run lint` | **0 errors** (warnings are intentional non-null assertions) |
 | `npm run build` | Passes — server bundle, shop, admin |
-| `npm run smoke` | **351 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
+| `npm run smoke` | **384 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
+| `npm run smoke:ui` | **61 checks, 0 failures** — every admin screen, in Chrome |
 | Bugs found and fixed | **27**, each with a regression test — see [BUGS-FIXED.md](./BUGS-FIXED.md) |
 | Seed | 20 products · 195 variants · 76 vocabulary terms · 4 size charts · 42 images · 130 reviews · 5 content pages · 3 journal entries · a seeded notification feed and outbox |
 

@@ -142,6 +142,8 @@ export const NAV: NavEntry[] = [
 
 const GROUP_ORDER = ['Overview', 'Catalogue', 'Sales', 'Configure'];
 
+const CLOSED_KEY = 'threadline.admin.nav.closed';
+
 const Icon = ({ path }: { path: string }) => (
   <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
     <path d={path} />
@@ -193,11 +195,49 @@ export const Sidebar = ({
 
   useEffect(() => setProfileOpen(false), [pathname]);
 
-  const visible = NAV.filter((entry) => entry.permission === '*' || can(entry.permission));
+  const visible = NAV.filter(
+    (entry) => entry.permission === '*' || can(entry.permission),
+  );
   const groups = GROUP_ORDER.map((title) => ({
     title,
     items: visible.filter((entry) => entry.group === title),
   })).filter((group) => group.items.length > 0);
+
+  /**
+   * Which groups are folded, remembered between sessions.
+   *
+   * Stored as the CLOSED set rather than the open one, so a group added later
+   * appears open by default — storing the open set would silently hide every
+   * new section from everyone who had used the panel before.
+   */
+  const [closed, setClosed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(CLOSED_KEY);
+      return new Set<string>(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const toggleGroup = (title: string) => {
+    setClosed((current) => {
+      const next = new Set(current);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      try {
+        localStorage.setItem(CLOSED_KEY, JSON.stringify([...next]));
+      } catch {
+        // Folds still work for this session; they just will not be remembered.
+      }
+      return next;
+    });
+  };
+
+  /** Is the page you are on inside this group? */
+  const holdsCurrent = (items: NavEntry[]): boolean =>
+    items.some((entry) =>
+      entry.to === '/' ? pathname === '/' : pathname.startsWith(entry.to),
+    );
 
   const countFor = (entry: NavEntry): number =>
     entry.badge === 'notifications'
@@ -240,30 +280,65 @@ export const Sidebar = ({
       </div>
 
       <nav className="nav" aria-label="Sections">
-        {groups.map((group) => (
-          <div key={group.title} className="nav-group">
-            <p className="nav-heading">{group.title}</p>
-            {group.items.map((entry) => {
-              const count = countFor(entry);
-              return (
-                <NavLink
-                  key={entry.to}
-                  to={entry.to}
-                  end={entry.to === '/'}
-                  onClick={onNavigate}
-                  className="nav-link"
-                  /* In rail mode the label is gone, so the tooltip is the only
+        {groups.map((group) => {
+          // A folded group that contains the current page would hide where you
+          // are, so it is treated as open regardless of the stored preference.
+          const isOpen = !closed.has(group.title) || holdsCurrent(group.items);
+          const hidden = group.items.reduce((sum, entry) => sum + countFor(entry), 0);
+
+          return (
+            <div key={group.title} className={`nav-group${isOpen ? '' : ' is-closed'}`}>
+              {/*
+              The heading is the control. A separate chevron button would be a
+              second finger-sized target for something the whole row can do.
+            */}
+              <button
+                type="button"
+                className="nav-heading"
+                onClick={() => toggleGroup(group.title)}
+                aria-expanded={isOpen}
+              >
+                <span>{group.title}</span>
+                {/* Work inside a folded group still shows, or a fold hides it. */}
+                {!isOpen && hidden > 0 ? (
+                  <span className="nav-badge">{hidden}</span>
+                ) : null}
+                <svg className="nav-chev" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              <div className="nav-items">
+                {/*
+                  Two elements, not one. `0fr` collapses a grid's single row —
+                  with the links as direct children the grid makes one row EACH
+                  and only the first collapses, which folds away one link and
+                  leaves the rest on screen.
+                */}
+                <div className="nav-items-inner">
+                  {group.items.map((entry) => {
+                    const count = countFor(entry);
+                    return (
+                      <NavLink
+                        key={entry.to}
+                        to={entry.to}
+                        end={entry.to === '/'}
+                        onClick={onNavigate}
+                        className="nav-link"
+                        /* In rail mode the label is gone, so the tooltip is the only
                      thing naming the icon. */
-                  title={entry.label}
-                >
-                  <Icon path={entry.icon} />
-                  <span className="nav-label">{entry.label}</span>
-                  {count > 0 ? <span className="nav-badge">{count}</span> : null}
-                </NavLink>
-              );
-            })}
-          </div>
-        ))}
+                        title={entry.label}
+                      >
+                        <Icon path={entry.icon} />
+                        <span className="nav-label">{entry.label}</span>
+                        {count > 0 ? <span className="nav-badge">{count}</span> : null}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       {/* Account, theme and sign out. In the sidebar rather than the header so

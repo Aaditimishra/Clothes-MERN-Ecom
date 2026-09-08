@@ -66,7 +66,7 @@
   --shadow: 0 2px 4px rgb(16 20 24 / 5%), 0 6px 16px rgb(16 20 24 / 8%);
   --shadow-lg: 0 4px 8px rgb(16 20 24 / 6%), 0 16px 40px rgb(16 20 24 / 14%);
 
-  --sidebar: 244px;
+  --sidebar: 224px;
   --sidebar-rail: 64px;
   --topbar-h: 60px;
 
@@ -214,7 +214,7 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 12px 11px;
+  padding: 10px 10px 9px;
   border-bottom: 1px solid var(--line);
   min-height: var(--topbar-h);
 }
@@ -231,8 +231,8 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
   flex: none;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 27px;
+  height: 27px;
   border-radius: var(--radius);
   background: var(--brand);
   color: var(--brand-ink);
@@ -241,7 +241,7 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 }
 
 .brand-text { display: grid; gap: 0; min-width: 0; }
-.brand-text strong { font-size: 14px; letter-spacing: -0.01em; line-height: 1.25; }
+.brand-text strong { font-size: 13px; letter-spacing: -0.01em; line-height: 1.25; }
 .brand-text span { font-size: 10.5px; color: var(--ink-3); line-height: 1.25; }
 
 .rail-toggle {
@@ -261,28 +261,76 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 .rail-toggle:hover { background: var(--paper-hover); color: var(--ink); }
 .rail-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-.nav { padding: 10px 8px; flex: 1; overflow-y: auto; overflow-x: hidden; }
-.nav-group + .nav-group { margin-top: 14px; }
+.nav { padding: 8px 8px 10px; flex: 1; overflow-y: auto; overflow-x: hidden; }
+.nav-group + .nav-group { margin-top: 6px; }
 
+/* The heading is a button, so it needs a button's reset and a hit area that
+   covers the row rather than just the words. */
 .nav-heading {
-  padding: 0 10px 6px;
-  font-size: 10.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--ink-4);
   white-space: nowrap;
+  cursor: pointer;
 }
+
+.nav-heading:hover { background: var(--paper-hover); color: var(--ink-3); }
+.nav-heading > span:first-child { flex: 1; text-align: left; }
+
+.nav-chev {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--fast) var(--ease);
+}
+
+.nav-group.is-closed .nav-chev { transform: rotate(-90deg); }
+
+/*
+ * The fold, done with a grid row rather than max-height.
+ *
+ * `max-height` on a collapse is always a guess: too small and long groups clip,
+ * too large and the transition spends half its time animating nothing. A `1fr`
+ * to `0fr` row is the real height in both directions.
+ *
+ * The inner wrapper is not optional — with the links as direct children the
+ * grid makes one row EACH and `0fr` only collapses the first, which is a fold
+ * that hides one link and leaves the rest on screen.
+ */
+.nav-items {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--fast) var(--ease);
+}
+
+.nav-group.is-closed .nav-items { grid-template-rows: 0fr; }
+.nav-items-inner { overflow: hidden; min-height: 0; }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 9px;
+  padding: 6px 10px;
   margin-bottom: 1px;
   border-radius: var(--radius);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
   transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
@@ -298,8 +346,8 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 
 .nav-icon {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -338,7 +386,10 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 
 .shell.is-rail .sidebar-brandbar { flex-direction: column; gap: 6px; padding: 10px 8px; }
 .shell.is-rail .rail-toggle { margin: 0; }
-.shell.is-rail .nav-link { justify-content: center; padding: 9px 0; }
+.shell.is-rail .nav-link { justify-content: center; padding: 8px 0; }
+/* No headings in the rail means no fold control, so nothing may stay folded —
+   otherwise a group could become unreachable with no way to open it. */
+.shell.is-rail .nav-group.is-closed .nav-items { grid-template-rows: 1fr; }
 .shell.is-rail .nav-group + .nav-group {
   margin-top: 10px;
   padding-top: 10px;
@@ -388,8 +439,8 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
   flex: none;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: var(--radius-pill);
   background: var(--paper-3);
   color: var(--ink-2);
@@ -398,7 +449,7 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 }
 
 .profile-who { display: grid; gap: 0; min-width: 0; flex: 1; }
-.profile-who strong { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-who strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-who span { font-size: 11px; color: var(--ink-3); text-transform: capitalize; }
 .profile-chev { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--ink-3); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
