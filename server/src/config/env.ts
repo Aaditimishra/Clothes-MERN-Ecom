@@ -62,6 +62,24 @@ const schema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().trim().default(''),
 
   /**
+   * SMTP. Optional, and absent by default.
+   *
+   * Without these the shop records every message in the outbox and sends none,
+   * which is the honest state for a shop with no mail account: a merchant who
+   * believes confirmations are going out will not discover otherwise for weeks.
+   * Supplying a host and credentials is what turns sending on.
+   *
+   * For Gmail this is an APP PASSWORD, not the account password — Google
+   * refuses the latter, and an app password can be revoked on its own.
+   */
+  SMTP_HOST: z.string().trim().default(''),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
+  SMTP_USER: z.string().trim().default(''),
+  SMTP_PASSWORD: z.string().default(''),
+  /** What the shopper sees in the From line. Falls back to `SMTP_USER`. */
+  MAIL_FROM: z.string().trim().default(''),
+
+  /**
    * How long an unpaid order holds its stock, in hours.
    *
    * Stock is reserved the moment the order is written, so an abandoned transfer
@@ -98,6 +116,16 @@ if (raw.NODE_ENV === 'production' && raw.JWT_SECRET.startsWith('dev-only-secret'
  */
 const razorpayConfigured = Boolean(raw.RAZORPAY_KEY_ID && raw.RAZORPAY_KEY_SECRET);
 
+/**
+ * Mail is configured only when all three are present.
+ *
+ * Checked together for the same reason the gateway keys are: a host with no
+ * credentials produces a transport that authenticates against nothing and fails
+ * on the first message, which presents as "emails stopped working" rather than
+ * as "emails were never set up".
+ */
+const smtpConfigured = Boolean(raw.SMTP_HOST && raw.SMTP_USER && raw.SMTP_PASSWORD);
+
 if (raw.NODE_ENV === 'production' && razorpayConfigured && !raw.RAZORPAY_WEBHOOK_SECRET) {
   console.warn(
     'Razorpay is configured without RAZORPAY_WEBHOOK_SECRET. Payments will be ' +
@@ -113,4 +141,5 @@ export const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   razorpayConfigured,
+  smtpConfigured,
 } as const;

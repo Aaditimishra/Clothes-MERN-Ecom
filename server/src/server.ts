@@ -2,9 +2,28 @@ import { createApp } from './app';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { env } from './config/env';
 import { sweepExpiredPayments } from './modules/payment/payment.service';
+import { useEmailDelivery } from './modules/notification/notification.service';
+import { createSmtpDelivery } from './modules/notification/smtp.delivery';
 
 const start = async (): Promise<void> => {
   await connectDatabase();
+
+  /**
+   * Mail goes out only when somebody has supplied credentials.
+   *
+   * Announced either way, and deliberately: "recording to the outbox" is a
+   * state a merchant needs to know they are in, because the alternative is
+   * discovering weeks later that no confirmation ever reached anybody.
+   */
+  if (env.smtpConfigured) {
+    useEmailDelivery(createSmtpDelivery());
+    console.info(`[mail] sending through ${env.SMTP_HOST} as ${env.SMTP_USER}`);
+  } else {
+    console.info(
+      '[mail] no SMTP configured — every message is recorded in the outbox and ' +
+        'nothing is sent. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD to send.',
+    );
+  }
 
   const server = createApp().listen(env.PORT, () => {
     console.info(`[api] listening on http://localhost:${env.PORT}`);

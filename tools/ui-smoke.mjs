@@ -122,9 +122,45 @@ const run = async () => {
     return errors;
   };
 
-  section('Signing in');
+  section('The sign-in screen');
   await visit('/');
   await page.waitForSelector('input[type="email"]', { timeout: 15_000 });
+
+  const login = await page.evaluate(() => {
+    const brand = document.querySelector('.login-brand');
+    const demo = document.querySelector('.login-demo');
+    return {
+      hasBrandPanel: Boolean(brand) && brand.getBoundingClientRect().width > 200,
+      brandTinted: brand ? getComputedStyle(brand).backgroundImage !== 'none' : false,
+      // Scaffolding, folded away: four accounts and a password printed under the
+      // form was the loudest thing on the screen.
+      demoFolded: Boolean(demo) && !demo.open,
+      submitFullWidth: (() => {
+        const button = document.querySelector('.login-card button[type="submit"]');
+        const card = document.querySelector('.login-card');
+        if (!button || !card) return false;
+        return button.getBoundingClientRect().width > card.getBoundingClientRect().width - 4;
+      })(),
+    };
+  });
+  check('there is a brand panel beside the form', login.hasBrandPanel);
+  check('it is tinted from the accent', login.brandTinted);
+  check('the demo accounts are folded away', login.demoFolded);
+  check('the submit button fills the card', login.submitFullWidth);
+
+  // The brand half is decoration, so it is the half that goes on a phone.
+  await page.setViewport({ width: 420, height: 900 });
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const narrow = await page.evaluate(() => ({
+    brandHidden: getComputedStyle(document.querySelector('.login-brand')).display === 'none',
+    markShown: getComputedStyle(document.querySelector('.login-mark')).display !== 'none',
+  }));
+  check('the brand panel goes on a phone', narrow.brandHidden);
+  check('and the mark takes its place', narrow.markShown);
+  await page.setViewport({ width: 1440, height: 900 });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  section('Signing in');
   await page.type('input[type="email"]', EMAIL);
   await page.type('input[type="password"]', PASSWORD);
   await Promise.all([
@@ -504,7 +540,7 @@ const run = async () => {
     };
   });
 
-  check('the profile menu offers accents', picked.count >= 6, `${picked.count} swatches`);
+  check('the profile menu offers accents', picked.count >= 12, `${picked.count} swatches`);
   check('choosing one repaints the panel', picked.brand === '#4f46e5', picked.brand);
 
   // A preference, so it has to outlive the page.
@@ -527,6 +563,70 @@ const run = async () => {
   check('"Store brand" restores the shop colour', restored.toLowerCase() === '#8f3d2f', restored);
 
   await page.evaluate(() => localStorage.removeItem('threadline.admin.accent'));
+
+  section("The shop wears the colour the admin sets");
+
+  /*
+   * End to end, through the settings screen a merchant actually uses — not by
+   * posting to the API. What is being checked is that the whole chain holds:
+   * the form saves it, the bootstrap serves it, and the storefront paints it.
+   */
+  const SHOP = process.env.SHOP_URL ?? 'http://localhost:5173';
+  const TRIAL = '#0d9488';
+
+  await visit('/settings');
+  const saved = await page.evaluate(async (colour) => {
+    const field = document.querySelector('input[type="color"][aria-label="Accent"]');
+    if (!field) return 'no accent field';
+
+    // A colour input ignores `.value =` unless the change is dispatched the way
+    // React listens for it.
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    ).set;
+    setter.call(field, colour);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const save = [...document.querySelectorAll('button')].find((b) =>
+      /save/i.test(b.textContent) && !b.disabled,
+    );
+    if (!save) return 'no enabled save button';
+    save.click();
+    return 'saved';
+  }, TRIAL);
+  check('the accent can be changed from Settings', saved === 'saved', saved);
+
+  if (saved === 'saved') {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const shop = await browser.newPage();
+    await shop.goto(SHOP, { waitUntil: 'networkidle2', timeout: 30_000 });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const shopAccent = await shop.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+    );
+    await shop.close();
+    check('the shop paints the new accent', shopAccent.toLowerCase() === TRIAL, shopAccent);
+
+    // Put it back, or every later run starts from the last one's colour.
+    await visit('/settings');
+    await page.evaluate(async (colour) => {
+      const field = document.querySelector('input[type="color"][aria-label="Accent"]');
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      ).set;
+      setter.call(field, colour);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      [...document.querySelectorAll('button')]
+        .find((b) => /save/i.test(b.textContent) && !b.disabled)
+        ?.click();
+    }, '#8f3d2f');
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
 
   section('The sidebar folds, and remembers');
 

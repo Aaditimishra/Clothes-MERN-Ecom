@@ -72,11 +72,16 @@ const ACCENT_KEY = 'threadline.admin.accent';
 export const ACCENT_PRESETS = [
   { id: 'store', label: 'Store brand', colour: null },
   { id: 'indigo', label: 'Indigo', colour: '#4f46e5' },
-  { id: 'violet', label: 'Violet', colour: '#7c3aed' },
+  { id: 'blue', label: 'Blue', colour: '#2563eb' },
+  { id: 'sky', label: 'Sky', colour: '#0284c7' },
   { id: 'teal', label: 'Teal', colour: '#0d9488' },
   { id: 'emerald', label: 'Emerald', colour: '#059669' },
+  { id: 'lime', label: 'Lime', colour: '#4d7c0f' },
   { id: 'amber', label: 'Amber', colour: '#b45309' },
+  { id: 'orange', label: 'Orange', colour: '#c2410c' },
   { id: 'rose', label: 'Rose', colour: '#e11d48' },
+  { id: 'plum', label: 'Plum', colour: '#a21caf' },
+  { id: 'violet', label: 'Violet', colour: '#7c3aed' },
   { id: 'slate', label: 'Slate', colour: '#475569' },
 ] as const;
 

@@ -400,6 +400,54 @@ customers one at a time to answer a ticket and downloading every customer's emai
 phone and lifetime value are different acts with different risk — so support staff
 get the first and not the second. Grant it per person in Staff.
 
+## Emails: what is recorded, and what is sent
+
+**Emails → the outbox** lists every message the shop has produced: order
+confirmations, shipping notices, password resets, the welcome mail.
+
+Read the **status** column, because it is the whole story:
+
+| Status | What happened |
+| --- | --- |
+| `recorded` | Written down. **Nothing was sent.** No mail account is configured |
+| `sent` | Handed to your mail provider and accepted |
+| `failed` | The provider refused it. The reason is on the row, and it can be retried |
+
+A fresh install says `recorded` for everything, on purpose. A shop that thinks
+its confirmations are going out and is wrong does not find out for weeks — from
+a customer, usually. The outbox shows exactly what *would* have gone, so the
+templates and the addresses can be checked before a single real message leaves.
+
+### Turning real sending on
+
+Someone with access to the server fills in four values in `.env` and restarts:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@yourshop.com
+SMTP_PASSWORD=your-app-password
+MAIL_FROM=Your Shop <you@yourshop.com>
+```
+
+**For Gmail that is an app password, not your Google password.** Google refuses
+the account password outright, and an app password can be revoked on its own
+without changing how you sign in. Turn on 2-Step Verification, then create one
+at `myaccount.google.com/apppasswords`.
+
+The API says which state it is in when it starts, so there is no guessing:
+
+```
+[mail] no SMTP configured — every message is recorded in the outbox…
+[mail] sending through smtp.gmail.com as you@yourshop.com
+```
+
+An email never fails an order. If the provider is down the order is still
+placed, and the row sits in the outbox marked `failed` with the reason, waiting
+to be retried.
+
+---
+
 ## Payments
 
 The queue of transfers waiting on **you** to look at a bank statement. Separate

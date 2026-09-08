@@ -52,99 +52,156 @@ export const LoginPage = () => {
     }
   };
 
+  const heading =
+    mode === 'sign-in'
+      ? 'Sign in'
+      : mode === 'forgot'
+        ? 'Reset your password'
+        : 'Choose a new password';
+
+  const blurb =
+    mode === 'sign-in'
+      ? 'Manage the catalogue, orders and payments.'
+      : mode === 'forgot'
+        ? 'We will email a link to the address on your account.'
+        : 'This link works once, so finish it in this tab.';
+
   return (
     <div className="login">
-      <form className="login-card" onSubmit={handleSubmit}>
-        <div>
-          <h1>Threadline Admin</h1>
-          <p className="muted">
-            {mode === 'sign-in'
-              ? 'Sign in to manage the shop.'
-              : mode === 'forgot'
-                ? 'We will email you a link to set a new password.'
-                : 'Choose a new password. This link works once.'}
-          </p>
-        </div>
+      {/*
+        Two panels on a desk, one on a phone.
+        The left is the shop's own side — it is the first screen anybody sees
+        each morning, and a bare form floating on grey says nothing about whose
+        shop it is. It is decoration, so it is the half that goes away when
+        there is no room for it.
+      */}
+      <aside className="login-brand" aria-hidden="true">
+        <div className="login-brand-mark">T</div>
+        <h2>Threadline</h2>
+        <p>
+          Everything the shop sells, and everything it has sold — the catalogue, the
+          vocabulary, the orders, the money.
+        </p>
+        <ul className="login-brand-points">
+          <li>Confirm bank transfers against your statement</li>
+          <li>Watch what is selling, day by day</li>
+          <li>Change the shop without a developer</li>
+        </ul>
+      </aside>
 
-        {error ? (
-          <p className="notice notice-error" role="alert">
-            {error}
-          </p>
-        ) : null}
+      <div className="login-panel">
+        <form className="login-card" onSubmit={handleSubmit}>
+          <div className="login-head">
+            {/* Repeated on the small screen, where the brand panel is gone. */}
+            <span className="login-mark">T</span>
+            <h1>{heading}</h1>
+            <p className="muted">{blurb}</p>
+          </div>
 
-        {notice ? (
-          <p className="notice notice-success" role="status">
-            {notice}
-          </p>
-        ) : null}
+          {error ? (
+            <p className="notice is-danger" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-        {mode !== 'reset' ? (
-          <Field label="Email">
-            <input
-              name="email"
-              type="email"
-              className="input"
-              autoComplete="username"
-              required
-              autoFocus
-            />
-          </Field>
-        ) : null}
+          {notice ? (
+            <p className="notice is-success" role="status">
+              {notice}
+            </p>
+          ) : null}
 
-        {mode !== 'forgot' ? (
-          <Field
-            label={mode === 'reset' ? 'New password' : 'Password'}
-            hint={mode === 'reset' ? 'At least 12 characters.' : undefined}
+          {mode !== 'reset' ? (
+            <Field label="Email">
+              <input
+                name="email"
+                type="email"
+                className="input"
+                placeholder="you@yourshop.com"
+                autoComplete="username"
+                required
+                autoFocus
+              />
+            </Field>
+          ) : null}
+
+          {mode !== 'forgot' ? (
+            <Field
+              label={mode === 'reset' ? 'New password' : 'Password'}
+              hint={mode === 'reset' ? 'At least 12 characters.' : undefined}
+            >
+              <input
+                name="password"
+                type="password"
+                className="input"
+                placeholder="••••••••••••"
+                autoComplete={mode === 'reset' ? 'new-password' : 'current-password'}
+                required
+                autoFocus={mode === 'reset'}
+              />
+            </Field>
+          ) : null}
+
+          <button
+            type="submit"
+            className="btn btn-primary btn-lg btn-block"
+            disabled={busy}
           >
-            <input
-              name="password"
-              type="password"
-              className="input"
-              autoComplete={mode === 'reset' ? 'new-password' : 'current-password'}
-              required
-              autoFocus={mode === 'reset'}
-            />
-          </Field>
-        ) : null}
+            {busy
+              ? 'Working…'
+              : mode === 'sign-in'
+                ? 'Sign in'
+                : mode === 'forgot'
+                  ? 'Send reset link'
+                  : 'Set new password'}
+          </button>
 
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy
-            ? 'Working…'
-            : mode === 'sign-in'
-              ? 'Sign in'
-              : mode === 'forgot'
-                ? 'Send reset link'
-                : 'Set new password'}
-        </button>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              setMode(mode === 'sign-in' ? 'forgot' : 'sign-in');
+              setError(null);
+              setNotice(null);
+            }}
+          >
+            {mode === 'sign-in' ? 'Forgot your password?' : '← Back to sign in'}
+          </button>
 
-        <button
-          type="button"
-          className="link-btn"
-          onClick={() => {
-            setMode(mode === 'sign-in' ? 'forgot' : 'sign-in');
-            setError(null);
-            setNotice(null);
-          }}
-        >
-          {mode === 'sign-in' ? 'Forgot your password?' : '← Back to sign in'}
-        </button>
+          {/*
+            Folded away, because it is scaffolding.
+            Four accounts and a password printed under the form is the loudest
+            thing on the screen, and it is the part that will not exist once
+            this is a real shop.
+          */}
+          {mode === 'sign-in' ? (
+            <details className="login-demo">
+              <summary>Demo accounts</summary>
+              <table className="login-demo-table">
+                <tbody>
+                  {[
+                    ['admin@threadline.shop', 'Everything'],
+                    ['merch@threadline.shop', 'Catalogue'],
+                    ['ops@threadline.shop', 'Orders & stock'],
+                    ['analyst@threadline.shop', 'Read & export'],
+                  ].map(([email, access]) => (
+                    <tr key={email}>
+                      <td>
+                        <code>{email}</code>
+                      </td>
+                      <td className="muted">{access}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted">
+                Password for all four: <code>threadline-admin-2026</code>
+              </p>
+            </details>
+          ) : null}
+        </form>
 
-        <div className="login-hint">
-          <strong>Demo accounts</strong>
-          <span>
-            <code>admin@threadline.shop</code> — full access
-          </span>
-          <span>
-            <code>merch@threadline.shop</code> — catalogue only
-          </span>
-          <span>
-            <code>ops@threadline.shop</code> — orders &amp; stock
-          </span>
-          <span>
-            Password: <code>threadline-admin-2026</code>
-          </span>
-        </div>
-      </form>
+        <p className="login-foot muted">Threadline · admin</p>
+      </div>
     </div>
   );
 };

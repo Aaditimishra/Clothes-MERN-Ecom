@@ -49,7 +49,7 @@ Full admin walkthrough: [ADMIN-GUIDE.md](./ADMIN-GUIDE.md)
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run lint` | ESLint over the workspace |
 | `npm run smoke` | 384 end-to-end checks against a live, freshly seeded server |
-| `npm run smoke:ui` | 86 checks that load every admin screen in a real browser |
+| `npm run smoke:ui` | 94 checks that load every admin screen in a real browser |
 | `npm run build` | Server bundle + both client builds |
 
 ---
@@ -487,7 +487,7 @@ Seeded: 21 products · 77 vocabulary terms · 11 categories · 4 size charts ·
 | `npm run lint` | **0 errors** (warnings are intentional non-null assertions) |
 | `npm run build` | Passes — server bundle, shop, admin |
 | `npm run smoke` | **384 checks, 0 failures** — see [TESTING.md](./TESTING.md) |
-| `npm run smoke:ui` | **86 checks, 0 failures** — every admin screen, in Chrome |
+| `npm run smoke:ui` | **94 checks, 0 failures** — every admin screen, in Chrome |
 | Bugs found and fixed | **27**, each with a regression test — see [BUGS-FIXED.md](./BUGS-FIXED.md) |
 | Seed | 20 products · 195 variants · 76 vocabulary terms · 4 size charts · 42 images · 130 reviews · 5 content pages · 3 journal entries · a seeded notification feed and outbox |
 
@@ -506,10 +506,13 @@ Seeded: 21 products · 77 vocabulary terms · 11 categories · 4 size charts ·
 - **Caches are per-process.** Settings (30s) and vocabulary (60s) are held in
   memory and invalidated on write, so a save is visible at once on the instance
   that handled it. Behind several instances the others converge within the TTL.
-- **Email is recorded, not sent.** Every message is written to an outbox and
-  listed in the admin with status `recorded`. `EmailDelivery` is the seam a real
-  provider drops into. Claiming to have sent mail that was never sent would have
-  been the easier demo and the wrong one.
+- **Email sends only when credentials are supplied.** Without `SMTP_HOST`,
+  `SMTP_USER` and `SMTP_PASSWORD` every message is written to the outbox with
+  status `recorded` and nothing leaves the building — the admin shows exactly
+  what would have gone. With them, `smtp.delivery.ts` sends the same messages
+  and the rows read `sent`. Neither is the default by accident: a shop that
+  believes confirmations are going out and is wrong will not find out for weeks,
+  and a shop relaying through a misconfigured server finds out from customers.
 - **Guest bags are swept after 30 days** by a TTL index rather than a cron job.
 - **No unit tests.** The pure logic worth isolating — money arithmetic, tax
   banding, variant reconciliation — is covered end to end instead. Unit tests
