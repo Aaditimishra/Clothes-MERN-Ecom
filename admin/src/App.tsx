@@ -6,6 +6,7 @@ import { RequirePermission } from './components/RequirePermission';
 import { BrandBridge } from './components/BrandBridge';
 import { Sidebar } from './components/Sidebar';
 import { api } from './lib/api';
+import { alertState, useActivityMonitor, type AlertState } from './lib/activity';
 import { useSession } from './lib/session';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { CouponsPage } from './pages/CouponsPage';
@@ -86,6 +87,16 @@ const Shell = () => {
   const { data: notifications } = useNotifications();
 
   /**
+   * Desktop alerts, polled while a panel tab is open.
+   *
+   * Held here rather than in the sidebar so the poll survives navigation — a
+   * monitor that restarted on every route change would re-establish its
+   * baseline each time and never announce anything.
+   */
+  const [alerts, setAlerts] = useState<AlertState>(alertState);
+  useActivityMonitor(alerts === 'on');
+
+  /**
    * The payments badge, from the same queue the screen itself reads.
    *
    * A count is the difference between somebody opening Payments because they
@@ -151,10 +162,16 @@ const Shell = () => {
           notifications: notifications?.unread ?? 0,
           payments: paymentQueue?.total ?? 0,
         }}
+        alerts={alerts}
+        onAlerts={setAlerts}
       />
 
       {isNavOpen ? (
-        <div className="sidebar-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />
+        <div
+          className="sidebar-scrim"
+          onClick={() => setNavOpen(false)}
+          aria-hidden="true"
+        />
       ) : null}
 
       <div className="main">

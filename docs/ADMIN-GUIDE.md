@@ -400,6 +400,31 @@ customers one at a time to answer a ticket and downloading every customer's emai
 phone and lifetime value are different acts with different risk — so support staff
 get the first and not the second. Grant it per person in Staff.
 
+## Being told when an order lands
+
+Under your name at the bottom of the sidebar: **Desktop alerts → Tell me about
+new orders**.
+
+Turn it on and your computer shows a banner when an order arrives or a shopper
+says they have paid — whatever tab you are looking at, and whatever window is in
+front. Clicking it brings the panel forward.
+
+The browser only lets a site ask for permission after you click something, so
+nothing is requested until you flip that switch. If you have already said no,
+the switch says so — that has to be undone in the browser's own site settings,
+not here.
+
+**The honest limit: it works while a Threadline tab is open somewhere.** It does
+not survive closing the browser. A shop with the panel open on the counter all
+day gets told; one that closes it does not. Real push notifications survive a
+closed browser, and needed a service worker, keys and Google's delivery to do
+it — this needs none of that and works wherever the panel does.
+
+Alerts are yours, stored in your browser. Turning them on does not turn them on
+for anybody else.
+
+---
+
 ## Emails: what is recorded, and what is sent
 
 **Emails → the outbox** lists every message the shop has produced: order

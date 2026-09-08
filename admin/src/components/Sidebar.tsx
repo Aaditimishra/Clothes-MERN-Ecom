@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { useSession } from '../lib/session';
+import { disableAlerts, enableAlerts, type AlertState } from '../lib/activity';
 import { ACCENT_PRESETS, useAccent, useTheme, type ThemeChoice } from '../lib/theme';
 
 /**
@@ -162,12 +163,16 @@ export const Sidebar = ({
   onToggleRail,
   onNavigate,
   badges,
+  alerts,
+  onAlerts,
 }: {
   isOpen: boolean;
   isRail: boolean;
   onToggleRail: () => void;
   onNavigate: () => void;
   badges: { notifications: number; payments: number };
+  alerts: AlertState;
+  onAlerts: (next: AlertState) => void;
 }) => {
   const { session, signOut, can } = useSession();
   const { pathname } = useLocation();
@@ -411,6 +416,42 @@ export const Sidebar = ({
                   />
                 ))}
               </div>
+            </div>
+
+            <div className="profile-section">
+              <span className="profile-section-title">Desktop alerts</span>
+              {/*
+                Asked for on a click, never on load.
+                Chrome refuses a permission prompt that did not follow a
+                gesture, and prompting unasked is how a site gets blocked
+                forever by somebody who was only trying to sign in.
+              */}
+              {alerts === 'unsupported' ? (
+                <p className="profile-note">This browser cannot show them.</p>
+              ) : alerts === 'blocked' ? (
+                <p className="profile-note">
+                  Blocked for this site. Allow notifications in your browser's site
+                  settings to turn them back on.
+                </p>
+              ) : (
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={alerts === 'on'}
+                    onChange={async (event) => {
+                      if (event.target.checked) onAlerts(await enableAlerts());
+                      else {
+                        disableAlerts();
+                        onAlerts('off');
+                      }
+                    }}
+                  />
+                  Tell me about new orders
+                </label>
+              )}
+              <p className="profile-note">
+                Only while a Threadline tab is open, in any window.
+              </p>
             </div>
 
             <NavLink to="/profile" className="profile-item" onClick={onNavigate}>

@@ -2214,3 +2214,6 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
   border: 1.5px solid var(--brand-ink);
   opacity: 0.85;
 }
+
+.profile-note { font-size: 11px; line-height: 1.5; color: var(--ink-4); }
+.profile-section .switch { font-size: 12.5px; }

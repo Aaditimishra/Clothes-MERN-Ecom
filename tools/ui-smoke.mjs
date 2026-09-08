@@ -13,6 +13,9 @@ import puppeteer from 'puppeteer-core';
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const BASE = process.env.ADMIN_URL ?? 'http://localhost:5174';
+/* Relative, so it goes through the admin's own dev proxy. A direct fetch to
+ * :4000 from :5174 is cross-origin and the API only allows the shop's. */
+const API_BASE = '/api';
 const EMAIL = 'admin@threadline.shop';
 const PASSWORD = 'threadline-admin-2026';
 
@@ -97,6 +100,34 @@ const run = async () => {
 
   const page = await browser.newPage();
   await page.setViewport({ width: 1440, height: 900 });
+
+  /*
+   * Notifications, granted and recorded.
+   *
+   * `Notification` is replaced before any app code runs so every banner the
+   * panel draws is captured — a real one cannot be read back, and a headless
+   * browser will not show one anyway.
+   */
+  await browser.defaultBrowserContext().overridePermissions(BASE, ['notifications']);
+  await page.evaluateOnNewDocument(() => {
+    window.__banners = [];
+    const Fake = function (title, options) {
+      window.__banners.push({
+        title,
+        body: options?.body,
+        tag: options?.tag,
+        renotify: options?.renotify,
+      });
+      return { close() {}, set onclick(_) {} };
+    };
+    Fake.permission = 'granted';
+    Fake.requestPermission = async () => 'granted';
+    Object.defineProperty(window, 'Notification', {
+      value: Fake,
+      writable: true,
+      configurable: true,
+    });
+  });
 
   /**
    * Errors are collected per navigation, not globally.
@@ -721,6 +752,90 @@ const run = async () => {
 
   await page.evaluate(() => document.querySelector('.rail-toggle')?.click());
   await page.evaluate(() => localStorage.removeItem('threadline.admin.rail'));
+
+  section('A new order raises a desktop banner');
+
+  await visit('/orders');
+
+  const switchState = await page.evaluate(async () => {
+    document.querySelector('.profile-trigger')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const label = [...document.querySelectorAll('.profile-section .switch')].find((l) =>
+      /new orders/i.test(l.textContent),
+    );
+    if (!label) return 'missing';
+    const input = label.querySelector('input');
+    /*
+      Only click it if it is OFF.
+      With permission already granted the switch starts on, and clicking
+      regardless turns the feature off — which is exactly what the first
+      version of this check did before reporting the feature broken.
+    */
+    if (!input.checked) input.click();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    document.body.click();
+    return input.checked ? 'on' : 'off';
+  });
+  check('the alerts switch is reachable and on', switchState === 'on', switchState);
+
+  if (switchState === 'on') {
+    const before = await page.evaluate(() => window.__banners.length);
+
+    // A real order, through the public API. Nothing about this is mocked
+    // except the browser's own notification surface.
+    const reference = await page.evaluate(async (api) => {
+      const product = await fetch(`${api}/catalog/products/oxford-button-down-shirt`).then((r) =>
+        r.json(),
+      );
+      const variant = product.variants.find((v) => v.isAvailable).id;
+      const bag = await fetch(`${api}/cart/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variantId: variant, quantity: 1 }),
+      }).then((r) => r.json());
+      const placed = await fetch(`${api}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-cart-id': bag.id },
+        body: JSON.stringify({
+          shippingAddress: {
+            fullName: 'Alert Test',
+            phone: '9876500002',
+            line1: '1 Test Road',
+            line2: null,
+            city: 'Mumbai',
+            state: 'Maharashtra',
+            postalCode: '400050',
+            country: 'IN',
+          },
+          paymentMethod: 'cod',
+          email: 'alert@example.test',
+        }),
+      }).then((r) => r.json());
+      return placed.order?.reference ?? null;
+    }, API_BASE);
+
+    check('an order can be placed while the panel watches', Boolean(reference), String(reference));
+
+    // The poll runs every twenty seconds; one full cycle plus slack.
+    await new Promise((resolve) => setTimeout(resolve, 24_000));
+
+    const banners = await page.evaluate(() => window.__banners);
+    const announced = banners.find((b) => b.title.includes(reference));
+
+    check(
+      'the new order raised a banner',
+      Boolean(announced),
+      banners.map((b) => b.title).join(' | ') || 'none drawn',
+    );
+
+    if (announced) {
+      // Both of these are what stop the SECOND banner being swallowed: a tag
+      // per kind, and renotify so a repeat announces rather than updating
+      // silently in place.
+      check('it is tagged by kind', announced.tag === 'new-order', String(announced.tag));
+      check('and set to re-announce', announced.renotify === true, String(announced.renotify));
+    }
+  }
 
   section('Dark mode paints everything');
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));

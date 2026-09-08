@@ -117,6 +117,8 @@ export const buildSeedOrders = (
 ): SeedOrderResult => {
   const orders: Record<string, unknown>[] = [];
   const references = new Set<string>();
+  // One clock for the whole run, so the cutoff cannot drift mid-generation.
+  const now = new Date();
   const sellable = products.filter((product) => product.variants.some((v) => v.stockQuantity > 0));
 
   for (let daysAgo = days; daysAgo >= 0; daysAgo -= 1) {
@@ -183,6 +185,22 @@ export const buildSeedOrders = (
 
       const placedAt = new Date(date);
       placedAt.setHours(9 + Math.floor(rand(`${key}:hour`) * 12), Math.floor(rand(`${key}:min`) * 60), 0, 0);
+
+      /**
+       * Today's orders cannot be later than right now.
+       *
+       * Trading hours run to 21:00, so seeding at midday put three of them in
+       * the future — and a shop that has taken an order at nine tonight is not
+       * a thing. It also broke something real: "the newest order" was a seeded
+       * one dated later today, so a genuinely new order was never the newest
+       * and the desktop alert never fired.
+       *
+       * Pulled back into the hour before now rather than clamped to it, so the
+       * most recent orders do not all share one timestamp.
+       */
+      if (placedAt.getTime() > now.getTime()) {
+        placedAt.setTime(now.getTime() - Math.floor(rand(`${key}:back`) * 3_600_000) - 60_000);
+      }
 
       const reference = referenceFor(key, references);
       const isSettled = outcome.paymentStatus === 'paid' || outcome.paymentStatus === 'refunded';

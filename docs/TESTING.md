@@ -8,7 +8,7 @@ npm run dev:test                #              servers, credential limit raised
 npm run smoke                   # terminal 2 — run ONCE
 ```
 
-**384 API checks and 94 browser checks, 0 failures.**
+**386 API checks and 99 browser checks, 0 failures.**
 
 ```bash
 npm run smoke      # the API, against a live seeded server

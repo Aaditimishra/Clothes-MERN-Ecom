@@ -751,6 +751,47 @@ adminRouter.patch(
   }),
 );
 
+/* -------------------------------- activity ------------------------------- */
+
+/**
+ * What is waiting, in one small request.
+ *
+ * Polled every twenty seconds by an open panel so it can raise a desktop
+ * notification the moment an order lands. Deliberately five numbers and a
+ * reference rather than a page of orders: this runs three times a minute per
+ * open tab, and it exists to answer "has anything changed" — the screens
+ * already know how to show what did.
+ *
+ * Gated on `order.view` like the queues it counts, so a support account does
+ * not get told about work it cannot see.
+ */
+adminRouter.get(
+  '/activity',
+  requirePermission('order.view'),
+  asyncHandler(async (_req, res) => {
+    const [queues, latest, unmoderated] = await Promise.all([
+      OrderModel.aggregate<{ _id: string; count: number }>([
+        { $match: { paymentStatus: { $in: ['awaiting_payment', 'verifying'] } } },
+        { $group: { _id: '$paymentStatus', count: { $sum: 1 } } },
+      ]),
+      // Newest first, on the same index the orders list uses.
+      OrderModel.findOne().sort({ placedAt: -1, _id: 1 }).select('reference placedAt').lean(),
+      // Orders that still need packing — what "new" means to whoever is working.
+      OrderModel.countDocuments({ status: { $in: ['pending', 'confirmed'] } }),
+    ]);
+
+    const by = new Map(queues.map((row) => [row._id, row.count]));
+
+    res.json({
+      toPack: unmoderated,
+      awaitingPayment: by.get('awaiting_payment') ?? 0,
+      toVerify: by.get('verifying') ?? 0,
+      latestOrderReference: latest?.reference ?? null,
+      latestOrderAt: latest?.placedAt?.toISOString() ?? null,
+    });
+  }),
+);
+
 /* -------------------------------- payments ------------------------------- */
 
 /**
