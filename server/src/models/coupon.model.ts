@@ -37,5 +37,8 @@ const couponSchema = new Schema(
   { timestamps: true, collection: 'coupons', _id: false },
 );
 
+// The coupons list, newest first.
+couponSchema.index({ createdAt: -1, _id: 1 });
+
 export type CouponDoc = InferSchemaType<typeof couponSchema>;
 export const CouponModel = model('Coupon', couponSchema);

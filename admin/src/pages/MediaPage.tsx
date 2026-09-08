@@ -5,6 +5,7 @@ import { ConfirmDialog, Dialog, Empty, Field, Pager } from '../components/ui';
 import { MEDIA_KEY, useUploadMedia } from '../components/MediaPicker';
 import { api, query } from '../lib/api';
 import { formatBytes, formatDate } from '../lib/format';
+import { usePaging } from '../lib/paging';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { MediaAsset, Paged } from '../lib/types';
@@ -14,7 +15,7 @@ export const MediaPage = () => {
   const { notify } = useToast();
   const queryClient = useQueryClient();
 
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize, reset } = usePaging(36);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<MediaAsset | null>(null);
   const [deleting, setDeleting] = useState<MediaAsset | null>(null);
@@ -26,7 +27,7 @@ export const MediaPage = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: [...MEDIA_KEY, 'page', page, search],
-    queryFn: () => api<Paged<MediaAsset>>(`/media${query({ page, pageSize: 36, search })}`),
+    queryFn: () => api<Paged<MediaAsset>>(`/media${query({ page, pageSize, search })}`),
   });
 
   const { data: usage } = useQuery({
@@ -80,7 +81,7 @@ export const MediaPage = () => {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
+              reset();
             }}
           />
           {canManage ? (
@@ -166,7 +167,10 @@ export const MediaPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="image"
               />
             </>
           ) : (

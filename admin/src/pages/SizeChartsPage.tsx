@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { SIZES } from '@shop/shared';
 
-import { ConfirmDialog, Dialog, Empty, Field, Loading } from '../components/ui';
-import { api } from '../lib/api';
+import { ConfirmDialog, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
+import { api, query } from '../lib/api';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { SizeChartView } from '../lib/types';
+import type { Paged, SizeChartView } from '../lib/types';
+import { usePaging } from '../lib/paging';
 
 interface Draft {
   id?: string;
@@ -36,14 +37,15 @@ export const SizeChartsPage = () => {
   const { can } = useSession();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const { page, pageSize, setPage, setPageSize } = usePaging(25);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [deleting, setDeleting] = useState<SizeChartView | null>(null);
 
   const canManage = can('catalog.manage');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['size-charts'],
-    queryFn: () => api<SizeChartView[]>('/size-charts'),
+    queryKey: ['size-charts', page, pageSize],
+    queryFn: () => api<Paged<SizeChartView>>(`/size-charts${query({ page, pageSize })}`),
   });
 
   const done = (message: string) => {
@@ -93,7 +95,11 @@ export const SizeChartsPage = () => {
         <h1>Size charts</h1>
         <div className="topbar-actions">
           {canManage ? (
-            <button type="button" className="btn btn-primary" onClick={() => setDraft(EMPTY)}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setDraft(EMPTY)}
+            >
               New chart
             </button>
           ) : null}
@@ -102,91 +108,106 @@ export const SizeChartsPage = () => {
 
       <div className="page">
         <p className="notice">
-          One chart serves many garments. Editing it here updates the size guide on
-          every product assigned to it — which is the point: a corrected measurement
-          should not have to be typed twenty times.
+          One chart serves many garments. Editing it here updates the size guide on every
+          product assigned to it — which is the point: a corrected measurement should not
+          have to be typed twenty times.
         </p>
 
         {isLoading ? (
           <div className="card">
             <Loading />
           </div>
-        ) : data && data.length > 0 ? (
-          data.map((chart) => (
-            <section key={chart.id} className="card">
-              <div className="card-head">
-                <h2>{chart.name}</h2>
-                <span className="muted">
-                  {chart.rows.length} sizes · measured in {chart.unit}
-                </span>
-                {canManage ? (
-                  <div className="card-head-actions">
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() =>
-                        setDraft({
-                          id: chart.id,
-                          name: chart.name,
-                          unit: chart.unit as 'cm' | 'in',
-                          note: chart.note ?? '',
-                          columns: chart.columns,
-                          rows: chart.rows.map((row) => ({
-                            size: row.size,
-                            values: row.values,
-                          })),
-                        })
-                      }
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
-                      onClick={() => setDeleting(chart)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+        ) : data && data.items.length > 0 ? (
+          <>
+            {data.items.map((chart) => (
+              <section key={chart.id} className="card">
+                <div className="card-head">
+                  <h2>{chart.name}</h2>
+                  <span className="muted">
+                    {chart.rows.length} sizes · measured in {chart.unit}
+                  </span>
+                  {canManage ? (
+                    <div className="card-head-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() =>
+                          setDraft({
+                            id: chart.id,
+                            name: chart.name,
+                            unit: chart.unit as 'cm' | 'in',
+                            note: chart.note ?? '',
+                            columns: chart.columns,
+                            rows: chart.rows.map((row) => ({
+                              size: row.size,
+                              values: row.values,
+                            })),
+                          })
+                        }
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => setDeleting(chart)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
 
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Size</th>
-                      {chart.columns.map((column) => (
-                        <th key={column.code} className="num">
-                          {column.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {chart.rows.map((row) => (
-                      <tr key={row.size}>
-                        <td>
-                          <strong>{row.size.toUpperCase()}</strong>
-                        </td>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Size</th>
                         {chart.columns.map((column) => (
-                          <td key={column.code} className="num">
-                            {row.values[column.code] ?? '—'}
-                          </td>
+                          <th key={column.code} className="num">
+                            {column.label}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {chart.note ? (
-                <div className="card-body">
-                  <p className="muted">{chart.note}</p>
+                    </thead>
+                    <tbody>
+                      {chart.rows.map((row) => (
+                        <tr key={row.size}>
+                          <td>
+                            <strong>{row.size.toUpperCase()}</strong>
+                          </td>
+                          {chart.columns.map((column) => (
+                            <td key={column.code} className="num">
+                              {row.values[column.code] ?? '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ) : null}
-            </section>
-          ))
+
+                {chart.note ? (
+                  <div className="card-body">
+                    <p className="muted">{chart.note}</p>
+                  </div>
+                ) : null}
+              </section>
+            ))}
+            {/* Cards, not rows — but the same pager, because "show me 50" has to
+                mean the same thing on every screen in the panel. */}
+            <div className="card">
+              <Pager
+                page={data.page}
+                pageCount={data.pageCount}
+                total={data.total}
+                pageSize={pageSize}
+                onChange={setPage}
+                onPageSize={setPageSize}
+                noun="size chart"
+              />
+            </div>
+          </>
         ) : (
           <div className="card">
             <Empty title="No size charts yet">

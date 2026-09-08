@@ -1,11 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { ConfirmDialog, Dialog, Empty, Field, Loading, Swatch } from '../components/ui';
+import {
+  ConfirmDialog,
+  Dialog,
+  Empty,
+  Field,
+  Loading,
+  Pager,
+  Swatch,
+} from '../components/ui';
 import { api, query } from '../lib/api';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { TaxonomyTerm } from '../lib/types';
+import type { Paged, TaxonomyTerm } from '../lib/types';
+import { usePaging } from '../lib/paging';
 
 /**
  * The vocabulary the shop filters and merchandises by.
@@ -33,6 +42,7 @@ export const TaxonomyPage = () => {
   const { can } = useSession();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const { page, pageSize, setPage, setPageSize } = usePaging(25);
 
   const [group, setGroup] = useState<string>('colour');
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -42,8 +52,9 @@ export const TaxonomyPage = () => {
   const active = GROUPS.find((entry) => entry.code === group)!;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['taxonomy', group],
-    queryFn: () => api<TaxonomyTerm[]>(`/taxonomy${query({ group })}`),
+    queryKey: ['taxonomy', group, page, pageSize],
+    queryFn: () =>
+      api<Paged<TaxonomyTerm>>(`/taxonomy${query({ group, page, pageSize })}`),
   });
 
   const invalidate = () => {
@@ -81,7 +92,8 @@ export const TaxonomyPage = () => {
   });
 
   const deactivate = useMutation({
-    mutationFn: (id: string) => api<TaxonomyTerm>(`/taxonomy/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) =>
+      api<TaxonomyTerm>(`/taxonomy/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       invalidate();
       notify('Term deactivated');
@@ -92,7 +104,10 @@ export const TaxonomyPage = () => {
 
   const reactivate = useMutation({
     mutationFn: (term: TaxonomyTerm) =>
-      api<TaxonomyTerm>(`/taxonomy/${term.id}`, { method: 'PUT', body: { isActive: true } }),
+      api<TaxonomyTerm>(`/taxonomy/${term.id}`, {
+        method: 'PUT',
+        body: { isActive: true },
+      }),
     onSuccess: () => {
       invalidate();
       notify('Term reactivated');
@@ -108,7 +123,9 @@ export const TaxonomyPage = () => {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => setDraft({ label: '', swatch: '#888888', isFilterable: true })}
+              onClick={() =>
+                setDraft({ label: '', swatch: '#888888', isFilterable: true })
+              }
             >
               Add {active.label.replace(/s$/, '').toLowerCase()}
             </button>
@@ -118,9 +135,9 @@ export const TaxonomyPage = () => {
 
       <div className="page">
         <p className="notice">
-          These are the values products can be tagged with, and the filters shoppers
-          see. Anything added here reaches the storefront on the next page load —
-          no deployment needed.
+          These are the values products can be tagged with, and the filters shoppers see.
+          Anything added here reaches the storefront on the next page load — no deployment
+          needed.
         </p>
 
         <section className="card">
@@ -139,79 +156,95 @@ export const TaxonomyPage = () => {
 
           {isLoading ? (
             <Loading />
-          ) : data && data.length > 0 ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    {active.hasSwatch ? <th style={{ width: 44 }} /> : null}
-                    <th>Label</th>
-                    <th>Code</th>
-                    <th>Filterable</th>
-                    <th>Status</th>
-                    <th className="tight" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((term) => (
-                    <tr key={term.id} style={term.isActive ? undefined : { opacity: 0.55 }}>
-                      {active.hasSwatch ? (
+          ) : data && data.items.length > 0 ? (
+            <>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      {active.hasSwatch ? <th style={{ width: 44 }} /> : null}
+                      <th>Label</th>
+                      <th>Code</th>
+                      <th>Filterable</th>
+                      <th>Status</th>
+                      <th className="tight" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.items.map((term) => (
+                      <tr
+                        key={term.id}
+                        style={term.isActive ? undefined : { opacity: 0.55 }}
+                      >
+                        {active.hasSwatch ? (
+                          <td>
+                            <Swatch colour={term.swatch} />
+                          </td>
+                        ) : null}
                         <td>
-                          <Swatch colour={term.swatch} />
+                          <strong>{term.label}</strong>
                         </td>
-                      ) : null}
-                      <td>
-                        <strong>{term.label}</strong>
-                      </td>
-                      <td className="mono muted">{term.code}</td>
-                      <td>{term.isFilterable ? 'Yes' : 'No'}</td>
-                      <td>
-                        <span className={`badge badge-${term.isActive ? 'active' : 'archived'}`}>
-                          {term.isActive ? 'active' : 'inactive'}
-                        </span>
-                      </td>
-                      <td className="tight">
-                        {canManage ? (
-                          <div className="row">
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              onClick={() =>
-                                setDraft({
-                                  id: term.id,
-                                  label: term.label,
-                                  swatch: term.swatch ?? '#888888',
-                                  isFilterable: term.isFilterable,
-                                })
-                              }
-                            >
-                              Edit
-                            </button>
-                            {term.isActive ? (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-danger"
-                                onClick={() => setDeactivating(term)}
-                              >
-                                Deactivate
-                              </button>
-                            ) : (
+                        <td className="mono muted">{term.code}</td>
+                        <td>{term.isFilterable ? 'Yes' : 'No'}</td>
+                        <td>
+                          <span
+                            className={`badge badge-${term.isActive ? 'active' : 'archived'}`}
+                          >
+                            {term.isActive ? 'active' : 'inactive'}
+                          </span>
+                        </td>
+                        <td className="tight">
+                          {canManage ? (
+                            <div className="row">
                               <button
                                 type="button"
                                 className="btn btn-sm"
-                                onClick={() => reactivate.mutate(term)}
+                                onClick={() =>
+                                  setDraft({
+                                    id: term.id,
+                                    label: term.label,
+                                    swatch: term.swatch ?? '#888888',
+                                    isFilterable: term.isFilterable,
+                                  })
+                                }
                               >
-                                Reactivate
+                                Edit
                               </button>
-                            )}
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                              {term.isActive ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => setDeactivating(term)}
+                                >
+                                  Deactivate
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  onClick={() => reactivate.mutate(term)}
+                                >
+                                  Reactivate
+                                </button>
+                              )}
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                page={data.page}
+                pageCount={data.pageCount}
+                total={data.total}
+                pageSize={pageSize}
+                onChange={setPage}
+                onPageSize={setPageSize}
+                noun="term"
+              />
+            </>
           ) : (
             <Empty title={`No ${active.label.toLowerCase()} yet`} />
           )}
@@ -255,7 +288,10 @@ export const TaxonomyPage = () => {
           </Field>
 
           {active.hasSwatch ? (
-            <Field label="Swatch" hint="The dot shown in filters and on the product page.">
+            <Field
+              label="Swatch"
+              hint="The dot shown in filters and on the product page."
+            >
               <div className="row">
                 <input
                   type="color"
@@ -277,7 +313,9 @@ export const TaxonomyPage = () => {
             <input
               type="checkbox"
               checked={draft.isFilterable}
-              onChange={(event) => setDraft({ ...draft, isFilterable: event.target.checked })}
+              onChange={(event) =>
+                setDraft({ ...draft, isFilterable: event.target.checked })
+              }
             />
             Offer this as a filter in the shop
           </label>
@@ -298,8 +336,8 @@ export const TaxonomyPage = () => {
                 filters and from the product editor.
               </p>
               <p className="muted" style={{ marginTop: 8 }}>
-                Products already using it keep it, and past orders stay readable —
-                which is why this deactivates rather than deletes.
+                Products already using it keep it, and past orders stay readable — which
+                is why this deactivates rather than deletes.
               </p>
             </>
           }

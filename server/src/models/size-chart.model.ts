@@ -42,5 +42,8 @@ const sizeChartSchema = new Schema(
   { timestamps: true, collection: 'size_charts', _id: false },
 );
 
+// The size-chart list, alphabetical.
+sizeChartSchema.index({ name: 1, _id: 1 });
+
 export type SizeChartDoc = InferSchemaType<typeof sizeChartSchema>;
 export const SizeChartModel = model('SizeChart', sizeChartSchema);

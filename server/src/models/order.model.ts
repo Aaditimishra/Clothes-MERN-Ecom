@@ -140,5 +140,29 @@ orderSchema.index({ paymentStatus: 1, 'payment.expiresAt': 1 });
 // Reconciling a gateway callback back to the order that started it.
 orderSchema.index({ 'payment.gatewayOrderId': 1 }, { sparse: true });
 
+/**
+ * The two heaviest reads in the panel, measured before this existed.
+ *
+ * The admin orders list and every dashboard aggregation both start from
+ * `placedAt`, and both were COLLSCANs with an in-memory sort on top: 138
+ * documents read and sorted to return the 25 on screen. The `_id` tail is what
+ * makes deep paging correct as well as fast — without a unique tiebreaker, two
+ * orders placed in the same millisecond have no defined order between pages, so
+ * one can appear on both page 2 and page 3 while another never appears at all.
+ */
+orderSchema.index({ placedAt: -1, _id: 1 });
+
+/** The orders list filtered by status, which is how it is normally used. */
+orderSchema.index({ status: 1, placedAt: -1 });
+
+/**
+ * The payments queue, in its own sort order.
+ *
+ * `paymentStatus` alone found the two rows quickly and then sorted them in
+ * memory — harmless at two, and an in-memory sort is capped at 32MB, so it is a
+ * hard failure rather than a slow one once a shop has a real backlog.
+ */
+orderSchema.index({ paymentStatus: 1, 'payment.claimedAt': -1, placedAt: -1, _id: 1 });
+
 export type OrderDoc = InferSchemaType<typeof orderSchema>;
 export const OrderModel = model('Order', orderSchema);

@@ -27,6 +27,13 @@ const reviewSchema = new Schema(
 // read-then-write check, which races under concurrent submits.
 reviewSchema.index({ productId: 1, customerId: 1 }, { unique: true });
 reviewSchema.index({ productId: 1, createdAt: -1 });
+/**
+ * The admin moderation queue: every review, newest first, no filter.
+ *
+ * The index above starts with `productId`, so it cannot serve an unfiltered
+ * sort — that listing read all 131 reviews and sorted them in memory to show 25.
+ */
+reviewSchema.index({ createdAt: -1, _id: 1 });
 
 export type ReviewDoc = InferSchemaType<typeof reviewSchema>;
 export const ReviewModel = model('Review', reviewSchema);

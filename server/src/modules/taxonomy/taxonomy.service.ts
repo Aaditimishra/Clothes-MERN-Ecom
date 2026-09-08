@@ -1,4 +1,5 @@
 import { newId, slugify } from '@shop/shared';
+import { pageOf, type Page, type PageQuery } from '../../lib/paginate';
 
 import { ApiError } from '../../lib/api-error';
 import {
@@ -85,10 +86,27 @@ export const groupedTaxonomy = async (): Promise<Record<string, TaxonomyTermView
   return grouped;
 };
 
-/** Admin listing includes inactive terms — you cannot re-enable what you cannot see. */
-export const listAllTerms = async (group?: TaxonomyGroup): Promise<TaxonomyTermView[]> => {
+/**
+ * Admin listing includes inactive terms — you cannot re-enable what you cannot see.
+ *
+ * Paged in memory rather than at the database, and deliberately so: the whole
+ * vocabulary is already held in a process cache that every priced request reads,
+ * so going back to Mongo for one page of it would be slower AND would stop the
+ * cache from being invalidated correctly on write. A few hundred terms is what
+ * this collection is for; if it ever were not, the cache would be the thing to
+ * reconsider first.
+ */
+export const listAllTerms = async (
+  group?: TaxonomyGroup,
+  query?: PageQuery,
+): Promise<Page<TaxonomyTermView>> => {
   const terms = await allTerms();
-  return terms.filter((term) => !group || term.group === group).map(toView);
+  const matching = terms.filter((term) => !group || term.group === group).map(toView);
+
+  const paging = query ?? { page: 1, pageSize: matching.length || 1 };
+  const start = (paging.page - 1) * paging.pageSize;
+
+  return pageOf(matching.slice(start, start + paging.pageSize), paging, matching.length);
 };
 
 export interface TermInput {

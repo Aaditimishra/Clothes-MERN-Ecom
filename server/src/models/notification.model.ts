@@ -81,6 +81,12 @@ const notificationSchema = new Schema(
 );
 
 notificationSchema.index({ createdAt: -1 });
+/**
+ * The feed is ALWAYS filtered by permission before it is sorted, so the date
+ * index alone could not serve it — Mongo found the visible rows and then sorted
+ * them in memory. Leading with `permission` lets one index do both.
+ */
+notificationSchema.index({ permission: 1, createdAt: -1, _id: 1 });
 
 export type NotificationDoc = InferSchemaType<typeof notificationSchema>;
 export const NotificationModel = model('Notification', notificationSchema);

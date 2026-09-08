@@ -1,4 +1,5 @@
 import { newId, type OrderView } from '@shop/shared';
+import type { Page, PageQuery } from '../../lib/paginate';
 
 import { env } from '../../config/env';
 import {
@@ -164,16 +165,32 @@ const toView = (doc: NotificationDoc, staffId: string): NotificationView => ({
 
 export const listNotifications = async (
   staff: { id: string; permissions: string[] },
-  limit = 30,
-): Promise<{ items: NotificationView[]; unread: number }> => {
+  query: PageQuery = { page: 1, pageSize: 30 },
+): Promise<Page<NotificationView> & { unread: number }> => {
+  // Only what this person is allowed to see: the feed is filtered by permission,
+  // so one manager's queue never leaks another team's work.
   const visible = { permission: { $in: staff.permissions } };
 
-  const [docs, unread] = await Promise.all([
-    NotificationModel.find(visible).sort({ createdAt: -1, _id: 1 }).limit(limit).lean(),
+  const [docs, total, unread] = await Promise.all([
+    NotificationModel.find(visible)
+      .sort({ createdAt: -1, _id: 1 })
+      .skip((query.page - 1) * query.pageSize)
+      .limit(query.pageSize)
+      .lean(),
+    NotificationModel.countDocuments(visible),
     NotificationModel.countDocuments({ ...visible, readBy: { $ne: staff.id } }),
   ]);
 
-  return { items: docs.map((doc) => toView(doc, staff.id)), unread };
+  return {
+    items: docs.map((doc) => toView(doc, staff.id)),
+    total,
+    page: query.page,
+    pageSize: query.pageSize,
+    pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
+    // Kept alongside the page: the sidebar badge counts EVERY unread item, not
+    // the unread ones that happen to be on the page you are looking at.
+    unread,
+  };
 };
 
 export const markNotificationsRead = async (
@@ -385,6 +402,7 @@ export const listEmails = async (params: {
     })),
     total,
     page: params.page,
+    pageSize: params.pageSize,
     pageCount: Math.max(1, Math.ceil(total / params.pageSize)),
   };
 };

@@ -75,6 +75,12 @@ const customerSchema = new Schema(
   { timestamps: true, collection: 'customers', _id: false },
 );
 
+/**
+ * "How many signed up this window", asked on every dashboard load, plus the
+ * customers export. Without it both walk the whole collection.
+ */
+customerSchema.index({ createdAt: -1, _id: 1 });
+
 export type CustomerDoc = InferSchemaType<typeof customerSchema>;
 export type AddressDoc = CustomerDoc['addresses'][number];
 export const CustomerModel = model('Customer', customerSchema);

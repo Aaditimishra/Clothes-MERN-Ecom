@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { paginate, type Page, type PageQuery } from '../../lib/paginate';
 import jwt from 'jsonwebtoken';
 import { newId } from '@shop/shared';
 
@@ -91,10 +92,14 @@ export const findStaff = async (id: string): Promise<StaffView> => {
   return toStaffView(staff);
 };
 
-export const listStaff = async (): Promise<StaffView[]> => {
-  const staff = await StaffModel.find().sort({ name: 1 }).lean();
-  return staff.map(toStaffView);
-};
+export const listStaff = async (query: PageQuery): Promise<Page<StaffView>> =>
+  paginate(StaffModel, {
+    // `_id` breaks the tie, so two people with the same name keep a stable
+    // order between pages instead of one appearing twice and another never.
+    sort: { name: 1, _id: 1 },
+    query,
+    map: toStaffView,
+  });
 
 export interface CreateStaffInput {
   email: string;

@@ -1,4 +1,5 @@
 import { newId, slugify, type ProductSummaryView } from '@shop/shared';
+import { paginate, type Page, type PageQuery } from '../../lib/paginate';
 
 import { ApiError } from '../../lib/api-error';
 import { PostModel, type PostDoc } from '../../models/post.model';
@@ -95,10 +96,12 @@ const toAdminView = (doc: PostDoc): PostAdminView => ({
   isPublished: doc.isPublished ?? true,
 });
 
-export const listAllPosts = async (): Promise<PostAdminView[]> => {
-  const docs = await PostModel.find().sort({ publishedAt: -1 }).lean();
-  return docs.map(toAdminView);
-};
+export const listAllPosts = async (query: PageQuery): Promise<Page<PostAdminView>> =>
+  paginate(PostModel, {
+    sort: { publishedAt: -1, _id: 1 },
+    query,
+    map: toAdminView,
+  });
 
 export interface PostInput {
   slug?: string;

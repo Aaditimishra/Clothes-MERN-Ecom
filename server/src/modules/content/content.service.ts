@@ -1,4 +1,5 @@
 import { newId, slugify } from '@shop/shared';
+import { paginate, type Page, type PageQuery } from '../../lib/paginate';
 
 import { ApiError } from '../../lib/api-error';
 import { PageModel, type BlockType } from '../../models/page.model';
@@ -89,10 +90,12 @@ export const footerLinks = async (): Promise<
   return grouped;
 };
 
-export const listPages = async (): Promise<PageView[]> => {
-  const pages = await PageModel.find().sort({ footerGroup: 1, position: 1, title: 1 }).lean();
-  return pages.map(toView);
-};
+export const listPages = async (query: PageQuery): Promise<Page<PageView>> =>
+  paginate(PageModel, {
+    sort: { footerGroup: 1, position: 1, title: 1, _id: 1 },
+    query,
+    map: toView,
+  });
 
 export interface PageInput {
   slug?: string;

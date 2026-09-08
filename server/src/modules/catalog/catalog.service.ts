@@ -290,6 +290,7 @@ export const listProducts = async (
     facets: facets.filter((facet) => facet.values.length > 0),
     total,
     page: query.page,
+    pageSize: query.pageSize,
     pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
     category: scope ? toCategoryView(scope.category, total) : null,
   };

@@ -78,6 +78,16 @@ export const Dialog = ({
       ref={ref}
       onClose={onClose}
       style={wide ? { width: 'min(1080px, calc(100vw - 32px))' } : undefined}
+      /*
+       * A click on the backdrop closes it.
+       *
+       * The backdrop is not a child, so a click on it reports the <dialog>
+       * itself as the target — that is how the two are told apart without an
+       * extra overlay element to get the z-index wrong.
+       */
+      onClick={(event) => {
+        if (event.target === ref.current) ref.current?.close();
+      }}
     >
       <header className="dialog-head">
         <h2>{title}</h2>
@@ -99,46 +109,138 @@ export const Dialog = ({
 
 /* ------------------------------- pagination ------------------------------ */
 
+/** What a merchant can ask for per page. Capped at the API's own limit. */
+export const PAGE_SIZES = [10, 25, 50, 100] as const;
+
+/**
+ * Numbered pages, with a window around the current one.
+ *
+ * A shop with sixty pages cannot show sixty buttons, and "Previous / Next"
+ * alone makes page forty a forty-click journey. First and last are always
+ * reachable, the neighbours of where you are are always reachable, and the gap
+ * between is an ellipsis rather than a lie about what is there.
+ */
+const pageWindow = (page: number, pageCount: number): Array<number | '…'> => {
+  if (pageCount <= 7) return Array.from({ length: pageCount }, (_, index) => index + 1);
+
+  const pages = new Set<number>([1, pageCount, page, page - 1, page + 1]);
+  // Keep the row a constant width near the ends, so the buttons do not shuffle
+  // sideways under the cursor as you page through.
+  if (page <= 3) [2, 3, 4].forEach((n) => pages.add(n));
+  if (page >= pageCount - 2) [pageCount - 1, pageCount - 2, pageCount - 3].forEach((n) => pages.add(n));
+
+  const sorted = [...pages].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+
+  const out: Array<number | '…'> = [];
+  let previous = 0;
+  for (const value of sorted) {
+    if (previous && value - previous > 1) out.push('…');
+    out.push(value);
+    previous = value;
+  }
+  return out;
+};
+
 export const Pager = ({
   page,
   pageCount,
   total,
+  pageSize,
   onChange,
+  onPageSize,
+  noun = 'item',
 }: {
   page: number;
   pageCount: number;
   total: number;
+  pageSize?: number;
   onChange: (page: number) => void;
+  onPageSize?: (size: number) => void;
+  /** What is being counted, so the row reads "12 reviews" not "12 items". */
+  noun?: string;
 }) => {
+  const label = `${total.toLocaleString('en-IN')} ${total === 1 ? noun : `${noun}s`}`;
+
+  /**
+   * The size control shows even on a single page.
+   *
+   * That page exists BECAUSE the size is ten — hiding the control there is
+   * exactly where somebody needs it, and is why "show me more" was unreachable
+   * on every list short enough to fit.
+   */
+  const sizer =
+    onPageSize && pageSize ? (
+      <label className="pager-size">
+        <span className="muted">Show</span>
+        <select
+          className="select"
+          value={pageSize}
+          onChange={(event) => onPageSize(Number(event.target.value))}
+          aria-label="Rows per page"
+        >
+          {PAGE_SIZES.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null;
+
   if (pageCount <= 1) {
     return (
-      <div className="pager muted">
-        {total} {total === 1 ? 'item' : 'items'}
-      </div>
+      <nav className="pager">
+        <span className="muted">{label}</span>
+        {sizer}
+      </nav>
     );
   }
 
   return (
     <nav className="pager" aria-label="Pagination">
-      <button
-        type="button"
-        className="btn btn-sm"
-        disabled={page <= 1}
-        onClick={() => onChange(page - 1)}
-      >
-        Previous
-      </button>
-      <span className="muted">
-        Page {page} of {pageCount} · {total} items
+      <span className="muted pager-count">
+        Page {page} of {pageCount} · {label}
       </span>
-      <button
-        type="button"
-        className="btn btn-sm"
-        disabled={page >= pageCount}
-        onClick={() => onChange(page + 1)}
-      >
-        Next
-      </button>
+
+      <div className="pager-pages">
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={page <= 1}
+          onClick={() => onChange(page - 1)}
+        >
+          Previous
+        </button>
+
+        {pageWindow(page, pageCount).map((entry, index) =>
+          entry === '…' ? (
+            <span key={`gap-${index}`} className="pager-gap" aria-hidden="true">
+              …
+            </span>
+          ) : (
+            <button
+              key={entry}
+              type="button"
+              className={`btn btn-sm pager-page${entry === page ? ' is-current' : ''}`}
+              aria-current={entry === page ? 'page' : undefined}
+              onClick={() => onChange(entry)}
+            >
+              {entry}
+            </button>
+          ),
+        )}
+
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={page >= pageCount}
+          onClick={() => onChange(page + 1)}
+        >
+          Next
+        </button>
+      </div>
+
+      {sizer}
     </nav>
   );
 };

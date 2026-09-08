@@ -1,4 +1,4 @@
-import type { Money, OrderStatus, OrderView, PaymentStatus, SizeChartView } from '@shop/shared';
+import type { Money, OrderView, SizeChartView } from '@shop/shared';
 
 export interface StaffView {
   id: string;
@@ -15,10 +15,12 @@ export interface Session {
   catalogue: { permissions: string[]; roles: string[] };
 }
 
+/** The one envelope every list endpoint answers with. */
 export interface Paged<T> {
   items: T[];
   total: number;
   page: number;
+  pageSize: number;
   pageCount: number;
 }
 

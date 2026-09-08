@@ -539,7 +539,12 @@ check('deactivated term gone from the shop', not any(t['code']=='corduroy' for t
 s, cats = call('GET', '/admin/categories', token=ATOK)
 womens = next(c for c in cats if c['slug'] == 'womens-outerwear')
 s, prods = call('GET', '/admin/products?pageSize=1', token=ATOK)
-s, charts = call('GET', '/admin/size-charts', token=ATOK)
+s, chartPage = call('GET', '/admin/size-charts', token=ATOK)
+# Every admin list answers with the same envelope now, so the suite unwraps the
+# same way everywhere rather than remembering which endpoints were special.
+check('size charts come back paged',
+      all(k in chartPage for k in ('items', 'total', 'page', 'pageSize', 'pageCount')), list(chartPage))
+charts = chartPage['items']
 s, media = call('GET', '/admin/media?pageSize=1', token=ATOK)
 img = media['items'][0]
 NEW = {'name':'Suite Test Coat','brandCode':'threadline','department':'women','status':'draft',
@@ -620,14 +625,14 @@ check('admin-made coupon works in the shop', s == 200 and capped['coupon']['code
 raw_pct = round(capped['totals']['subtotal']['amount'] * 0.30)
 check('the cap binds, not the percentage', capped['totals']['couponDiscount']['amount'] == 20000,
       f"got {capped['totals']['couponDiscount']['amount']}, 30% would be {raw_pct}")
-s, cbefore = call('GET', '/admin/coupons', token=ATOK)
-used_before = next(c for c in cbefore if c['code'] == 'SUITECAP')['usageCount']
+s, cbefore = call('GET', '/admin/coupons?pageSize=100', token=ATOK)
+used_before = next(c for c in cbefore['items'] if c['code'] == 'SUITECAP')['usageCount']
 s, cplaced = call('POST', '/checkout', {'shippingAddress': addr, 'paymentMethod':'upi'}, token=TOK, cart=cbag['id'])
 corder = cplaced['order'] if s == 201 else cplaced
 check('order records the coupon', corder['couponCode'] == 'SUITECAP', corder['couponCode'])
 check('order snapshots the discount', corder['totals']['couponDiscount']['amount'] == 20000)
-s, cafter = call('GET', '/admin/coupons', token=ATOK)
-used_after = next(c for c in cafter if c['code'] == 'SUITECAP')['usageCount']
+s, cafter = call('GET', '/admin/coupons?pageSize=100', token=ATOK)
+used_after = next(c for c in cafter['items'] if c['code'] == 'SUITECAP')['usageCount']
 check('usage ledger increments on checkout', used_after == used_before + 1, f'{used_before} → {used_after}')
 s, _ = call('DELETE', f'/admin/coupons/{CAPID}', token=ATOK)
 s, still = call('GET', f"/orders/{corder['reference']}", token=TOK)
@@ -824,7 +829,8 @@ check('linked products are resolved, not raw slugs',
       [p.get('slug') for p in post['products']])
 check('an unknown slug → 404', call('GET', '/storefront/journal/no-such-entry')[0] == 404)
 
-s, mine = call('GET', '/admin/journal', token=ATOK)
+s, minePage = call('GET', '/admin/journal?pageSize=100', token=ATOK)
+mine = minePage['items']
 check('admin sees every entry', s == 200 and len(mine) >= len(feed['items']), s)
 # The admin editor writes back exactly what it was handed, so anything the list
 # omits is erased on the next save. Both of these were missing once.
@@ -1053,6 +1059,66 @@ check('the restock is recorded on the order', restocked['stockReleasedAt'] is no
 
 # `restock` is an instruction, not a column.
 check('restock is not written onto the order', 'restock' not in restocked, list(restocked)[:12])
+
+section('23. Every list is paged, the same way')
+
+# One envelope everywhere. A screen that had to know whether its endpoint
+# returned a bare array or an envelope is a screen that gets it wrong.
+LISTS = [
+    ('/admin/products', 'catalog.view'),
+    ('/admin/orders', 'order.view'),
+    ('/admin/payments', 'order.view'),
+    ('/admin/customers', 'customer.view'),
+    ('/admin/reviews', 'review.moderate'),
+    ('/admin/coupons', 'promotion.manage'),
+    ('/admin/staff', 'staff.manage'),
+    ('/admin/size-charts', 'catalog.view'),
+    ('/admin/taxonomy', 'catalog.view'),
+    ('/admin/journal', 'catalog.view'),
+    ('/admin/pages', 'catalog.view'),
+    ('/admin/media', 'catalog.view'),
+    ('/admin/emails', 'settings.manage'),
+    ('/admin/notifications', '*'),
+]
+
+for path, _perm in LISTS:
+    st, body = call('GET', f'{path}?page=1&pageSize=10', token=ATOK)
+    ok = st == 200 and isinstance(body, dict) and all(
+        k in body for k in ('items', 'total', 'page', 'pageSize', 'pageCount'))
+    check(f'{path} answers with the envelope', ok, body if not ok else '')
+    if ok:
+        check(f'{path} honours pageSize', len(body['items']) <= 10 and body['pageSize'] == 10,
+              f"{len(body['items'])} items, pageSize {body['pageSize']}")
+
+# 100 is the ceiling, and it is the API that enforces it — a client asking for
+# more must be refused rather than quietly handed the whole collection.
+s, big = call('GET', '/admin/orders?pageSize=100', token=ATOK)
+check('a hundred rows is allowed', s == 200 and big['pageSize'] == 100, s)
+s, d = call('GET', '/admin/orders?pageSize=500', token=ATOK)
+check('more than a hundred is refused', s == 400, s)
+s, d = call('GET', '/admin/orders?page=0', token=ATOK)
+check('page zero is refused', s == 400, s)
+
+# An empty page still reads as page 1 of 1, not page 1 of 0 — which looks like a
+# fault and disables both arrows.
+s, far = call('GET', '/admin/orders?page=9999&pageSize=25', token=ATOK)
+check('paging past the end is empty, not broken',
+      s == 200 and far['items'] == [] and far['pageCount'] >= 1, far.get('pageCount'))
+
+# Pages must not overlap. Without a unique tiebreaker in the sort, two orders
+# placed in the same millisecond can appear on both pages and a third on neither.
+s, p1 = call('GET', '/admin/orders?page=1&pageSize=10', token=ATOK)
+s, p2 = call('GET', '/admin/orders?page=2&pageSize=10', token=ATOK)
+ids1 = {o['id'] for o in p1['items']}
+ids2 = {o['id'] for o in p2['items']}
+check('consecutive pages do not overlap', ids1.isdisjoint(ids2), ids1 & ids2)
+
+# The notification badge counts EVERY unread item, not the unread ones that
+# happen to be on the page being read.
+s, n1 = call('GET', '/admin/notifications?pageSize=1', token=ATOK)
+s, n5 = call('GET', '/admin/notifications?pageSize=25', token=ATOK)
+check('unread is a total, not a page count', n1['unread'] == n5['unread'],
+      f"{n1['unread']} vs {n5['unread']}")
 
 print(f'\n{"="*62}\n  PASSED {passed}   FAILED {failed}\n{"="*62}')
 for f in FAILS: print('  ✗', f)

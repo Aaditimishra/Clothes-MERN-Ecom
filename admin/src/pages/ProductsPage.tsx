@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { Badge, Empty, Loading, Pager } from '../components/ui';
 import { api, downloadCsv, query } from '../lib/api';
 import { formatDate, formatMoney, titleCase } from '../lib/format';
+import { usePaging } from '../lib/paging';
 import { useSession } from '../lib/session';
 import type { AdminProductSummary, Paged } from '../lib/types';
 
@@ -15,14 +16,14 @@ const LOW_STOCK = 20;
 
 export const ProductsPage = () => {
   const { can } = useSession();
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize, reset } = usePaging(25);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', page, search, status],
+    queryKey: ['products', page, pageSize, search, status],
     queryFn: () =>
-      api<Paged<AdminProductSummary>>(`/products${query({ page, pageSize: 25, search, status })}`),
+      api<Paged<AdminProductSummary>>(`/products${query({ page, pageSize, search, status })}`),
   });
 
   return (
@@ -37,7 +38,7 @@ export const ProductsPage = () => {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
+              reset();
             }}
           />
           <select
@@ -46,7 +47,7 @@ export const ProductsPage = () => {
             value={status}
             onChange={(event) => {
               setStatus(event.target.value);
-              setPage(1);
+              reset();
             }}
           >
             {STATUSES.map((value) => (
@@ -137,7 +138,10 @@ export const ProductsPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="product"
               />
             </>
           ) : (

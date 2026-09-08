@@ -87,5 +87,8 @@ const staffSchema = new Schema(
   { timestamps: true, collection: 'staff_users', _id: false },
 );
 
+// The staff list's only sort. Small today, and the index costs nothing.
+staffSchema.index({ name: 1, _id: 1 });
+
 export type StaffDoc = InferSchemaType<typeof staffSchema>;
 export const StaffModel = model('StaffUser', staffSchema);

@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Dialog, Empty, Field, Loading } from '../components/ui';
-import { AdminError, api } from '../lib/api';
+import { Dialog, Empty, Field, Loading, Pager } from '../components/ui';
+import { AdminError, api, query } from '../lib/api';
 import { formatDate, titleCase } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { StaffView } from '../lib/types';
+import type { Paged, StaffView } from '../lib/types';
+import { usePaging } from '../lib/paging';
 
 interface Draft {
   email: string;
@@ -19,6 +20,7 @@ export const StaffPage = () => {
   const { session } = useSession();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const { page, pageSize, setPage, setPageSize } = usePaging(25);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [resetting, setResetting] = useState<StaffView | null>(null);
@@ -28,8 +30,8 @@ export const StaffPage = () => {
   const allPermissions = session?.catalogue.permissions ?? [];
 
   const { data, isLoading } = useQuery({
-    queryKey: ['staff'],
-    queryFn: () => api<StaffView[]>('/staff'),
+    queryKey: ['staff', page, pageSize],
+    queryFn: () => api<Paged<StaffView>>(`/staff${query({ page, pageSize })}`),
   });
 
   const done = (message: string) => {
@@ -42,7 +44,8 @@ export const StaffPage = () => {
   };
 
   const create = useMutation({
-    mutationFn: (input: Draft) => api<StaffView>('/staff', { method: 'POST', body: input }),
+    mutationFn: (input: Draft) =>
+      api<StaffView>('/staff', { method: 'POST', body: input }),
     onSuccess: () => done('Staff member added'),
     onError: (error: unknown) => {
       if (error instanceof AdminError) setFields(error.fields);
@@ -66,9 +69,11 @@ export const StaffPage = () => {
       }),
     onSuccess: () => done('Password changed'),
     onError: (error: unknown) =>
-      notify(error instanceof Error ? error.message : 'Could not change password', 'error'),
+      notify(
+        error instanceof Error ? error.message : 'Could not change password',
+        'error',
+      ),
   });
-
 
   return (
     <>
@@ -97,97 +102,113 @@ export const StaffPage = () => {
         <section className="card">
           {isLoading ? (
             <Loading />
-          ) : data && data.length > 0 ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th className="num">Permissions</th>
-                    <th>Last signed in</th>
-                    <th>Status</th>
-                    <th className="tight" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((member) => (
-                    <tr key={member.id} style={member.isActive ? undefined : { opacity: 0.55 }}>
-                      <td>
-                        <strong>{member.name}</strong>
-                        {member.id === session?.staff.id ? (
-                          <span className="muted"> · you</span>
-                        ) : null}
-                      </td>
-                      <td className="mono">{member.email}</td>
-                      <td>
-                        <select
-                          className="select"
-                          style={{ width: 150 }}
-                          value={member.role}
-                          onChange={(event) =>
-                            update.mutate({
-                              id: member.id,
-                              // Only the role is sent. The server re-applies that
-                              // role's preset, which is what the dropdown implies
-                              // — sending `permissions: undefined` looked like it
-                              // said the same thing, but JSON drops the key and
-                              // the old permissions silently survived.
-                              patch: { role: event.target.value },
-                            })
-                          }
-                        >
-                          {roles.map((role) => (
-                            <option key={role} value={role}>
-                              {titleCase(role)}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="num">
-                        {member.permissions.length} / {allPermissions.length}
-                      </td>
-                      <td className="muted">{formatDate(member.lastLoginAt)}</td>
-                      <td>
-                        <span className={`badge badge-${member.isActive ? 'active' : 'archived'}`}>
-                          {member.isActive ? 'active' : 'disabled'}
-                        </span>
-                      </td>
-                      <td className="tight">
-                        <div className="row">
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => setResetting(member)}
-                          >
-                            Password
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            disabled={member.id === session?.staff.id}
-                            title={
-                              member.id === session?.staff.id
-                                ? 'You cannot disable your own account'
-                                : undefined
-                            }
-                            onClick={() =>
+          ) : data && data.items.length > 0 ? (
+            <>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th className="num">Permissions</th>
+                      <th>Last signed in</th>
+                      <th>Status</th>
+                      <th className="tight" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.items.map((member) => (
+                      <tr
+                        key={member.id}
+                        style={member.isActive ? undefined : { opacity: 0.55 }}
+                      >
+                        <td>
+                          <strong>{member.name}</strong>
+                          {member.id === session?.staff.id ? (
+                            <span className="muted"> · you</span>
+                          ) : null}
+                        </td>
+                        <td className="mono">{member.email}</td>
+                        <td>
+                          <select
+                            className="select"
+                            style={{ width: 150 }}
+                            value={member.role}
+                            onChange={(event) =>
                               update.mutate({
                                 id: member.id,
-                                patch: { isActive: !member.isActive },
+                                // Only the role is sent. The server re-applies that
+                                // role's preset, which is what the dropdown implies
+                                // — sending `permissions: undefined` looked like it
+                                // said the same thing, but JSON drops the key and
+                                // the old permissions silently survived.
+                                patch: { role: event.target.value },
                               })
                             }
                           >
-                            {member.isActive ? 'Disable' : 'Enable'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            {roles.map((role) => (
+                              <option key={role} value={role}>
+                                {titleCase(role)}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="num">
+                          {member.permissions.length} / {allPermissions.length}
+                        </td>
+                        <td className="muted">{formatDate(member.lastLoginAt)}</td>
+                        <td>
+                          <span
+                            className={`badge badge-${member.isActive ? 'active' : 'archived'}`}
+                          >
+                            {member.isActive ? 'active' : 'disabled'}
+                          </span>
+                        </td>
+                        <td className="tight">
+                          <div className="row">
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => setResetting(member)}
+                            >
+                              Password
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              disabled={member.id === session?.staff.id}
+                              title={
+                                member.id === session?.staff.id
+                                  ? 'You cannot disable your own account'
+                                  : undefined
+                              }
+                              onClick={() =>
+                                update.mutate({
+                                  id: member.id,
+                                  patch: { isActive: !member.isActive },
+                                })
+                              }
+                            >
+                              {member.isActive ? 'Disable' : 'Enable'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                page={data.page}
+                pageCount={data.pageCount}
+                total={data.total}
+                pageSize={pageSize}
+                onChange={setPage}
+                onPageSize={setPageSize}
+                noun="person"
+              />
+            </>
           ) : (
             <Empty title="No staff yet" />
           )}

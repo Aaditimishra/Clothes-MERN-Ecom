@@ -197,7 +197,13 @@ export const listMedia = async (params: {
   page: number;
   pageSize: number;
   search?: string;
-}): Promise<{ items: MediaView[]; total: number; page: number; pageCount: number }> => {
+}): Promise<{
+  items: MediaView[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+}> => {
   const filter = params.search
     ? {
         $or: [
@@ -221,6 +227,7 @@ export const listMedia = async (params: {
     items: items.map(toMediaView),
     total,
     page: params.page,
+    pageSize: params.pageSize,
     pageCount: Math.max(1, Math.ceil(total / params.pageSize)),
   };
 };

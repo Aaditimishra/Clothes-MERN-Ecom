@@ -729,11 +729,22 @@ td.tight { width: 1%; white-space: nowrap; }
 
 .input, .select, .textarea {
   width: 100%;
-  padding: 7px 10px;
+  /* 34px tall. The old 7px padding gave a 30px control, which is under every
+     comfortable-target guideline and felt cramped beside a 34px button. */
+  padding: 8px 11px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--paper);
-  transition: border-color 0.12s, box-shadow 0.12s;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.input::placeholder, .textarea::placeholder { color: var(--ink-4); }
+.input:hover:not(:focus), .select:hover:not(:focus), .textarea:hover:not(:focus) {
+  border-color: var(--ink-4);
 }
 
 .input:focus, .select:focus, .textarea:focus {
@@ -742,11 +753,57 @@ td.tight { width: 1%; white-space: nowrap; }
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
+.input:disabled, .select:disabled, .textarea:disabled {
+  background: var(--paper-2);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
 .input[aria-invalid='true'], .select[aria-invalid='true'], .textarea[aria-invalid='true'] {
   border-color: var(--danger);
 }
+.input[aria-invalid='true']:focus, .select[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
 
-.textarea { resize: vertical; min-height: 72px; line-height: 1.55; }
+/*
+ * A select that matches the inputs beside it.
+ *
+ * The native control renders its own chevron in the platform's colours and
+ * ignores the border radius on Windows, so it sat visibly apart from every text
+ * field in the same row. `appearance: none` plus a drawn caret is the only way
+ * to get one control that looks the same on all three platforms — and the extra
+ * right padding is what stops a long option running underneath it.
+ */
+.select {
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7785' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 15px;
+  cursor: pointer;
+}
+
+/*
+ * The caret is a background image, so it cannot inherit `currentColor` — dark
+ * mode needs its own or it disappears against a dark field.
+ *
+ * Written twice rather than once, because an explicit choice has to beat the OS
+ * in both directions: the media query alone would leave someone who picked Dark
+ * on a light machine with a caret they cannot see.
+ */
+:root[data-theme='dark'] .select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808d9c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808d9c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+}
+
+.textarea { resize: vertical; min-height: 78px; line-height: 1.55; }
 
 .field { display: grid; gap: 5px; }
 .field > label, .field-label {
@@ -754,7 +811,7 @@ td.tight { width: 1%; white-space: nowrap; }
   text-transform: uppercase; color: var(--ink-3);
 }
 .field-hint { font-size: 11.5px; color: var(--ink-3); }
-.field-error { font-size: 12px; color: var(--danger); }
+.field-error { font-size: 12px; color: var(--danger); font-weight: 500; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -971,17 +1028,74 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 
 /* -------------------------------- dialog ------------------------------- */
 
+/*
+ * A modal dialog centres itself — unless something has taken its margin away.
+ *
+ * `showModal()` centres by way of the user-agent's `margin: auto`, and the
+ * reset at the top of this file (`* { margin: 0 }`) was quietly overriding it.
+ * Every dialog in the panel opened jammed into the top-left corner and stretched
+ * down the page. `margin: auto` is not decoration here; it IS the centring.
+ */
 .dialog {
-  border: none; padding: 0; border-radius: var(--radius-lg);
-  width: min(860px, calc(100vw - 32px)); max-height: calc(100dvh - 64px);
-  background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
+  margin: auto;
+  border: none;
+  padding: 0;
+  border-radius: var(--radius-lg);
+  /* 560px suits the field stacks these mostly hold. The wide variant opts up
+     for editors that genuinely need two columns. */
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(680px, calc(100dvh - 64px));
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
-.dialog::backdrop { background: rgb(16 20 24 / 0.55); }
-.dialog-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-.dialog-head h2 { font-size: 15px; }
-.dialog-body { padding: 18px; display: grid; gap: 16px; max-height: 64dvh; overflow-y: auto; }
-.dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 13px 18px; border-top: 1px solid var(--line); background: var(--paper-2); }
+/* Opens with a small rise rather than appearing. `allow-discrete` is what lets
+   a `display: none` element animate in at all. */
+@starting-style {
+  .dialog[open] { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
+.dialog[open] {
+  opacity: 1;
+  transform: none;
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease), overlay 160ms allow-discrete,
+    display 160ms allow-discrete;
+}
+
+.dialog::backdrop { background: rgb(16 20 24 / 0.45); backdrop-filter: blur(2px); }
+@starting-style { .dialog[open]::backdrop { opacity: 0; } }
+.dialog[open]::backdrop { opacity: 1; transition: opacity 160ms var(--ease), overlay 160ms allow-discrete, display 160ms allow-discrete; }
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dialog-head h2 { font-size: 14.5px; letter-spacing: -0.01em; }
+.dialog-head .mono { color: var(--ink-2); }
+
+.dialog-body {
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+  /* Bounded by the dialog's own max-height rather than the viewport, so the
+     header and footer stay put and only the middle scrolls. */
+  overflow-y: auto;
+}
+
+.dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--paper-2);
+}
 
 /* ------------------------------ login page ----------------------------- */
 
@@ -1092,7 +1206,53 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 .tab:hover { color: var(--ink); }
 .tab.is-active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
 
-.pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px; }
+/*
+ * Count on the left, pages in the middle, size on the right.
+ *
+ * Three regions rather than one centred row, so the numbers do not slide
+ * sideways as the count grows from "9 items" to "1,284 items" — a control that
+ * moves under the cursor between clicks is a control people misclick.
+ */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.pager-count { flex: 1 1 auto; font-variant-numeric: tabular-nums; }
+.pager-pages { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; }
+
+.pager-page {
+  min-width: 30px;
+  padding: 4px 7px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager-page.is-current {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+
+.pager-page.is-current:hover { background: var(--brand); }
+.pager-gap { padding: 0 2px; color: var(--ink-4); }
+
+.pager-size { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+/* Sized to its content: a full-width select in a toolbar row is the classic way
+   a three-character control ends up 400px wide. */
+.pager-size .select { width: auto; padding: 4px 26px 4px 9px; font-size: 12px; background-size: 13px; }
+
+@media (max-width: 700px) {
+  .pager { justify-content: center; }
+  .pager-count { flex-basis: 100%; text-align: center; }
+}
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ------------------------------ palette editor --------------------------- */
@@ -1364,3 +1524,210 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 }
 
 .tab.is-active .tab-count { background: var(--brand); color: #fff; }
+
+/* ---------------------------- payment review ----------------------------- */
+
+/*
+ * The dialog for "did this money arrive".
+ *
+ * The previous version was a flat stack of uppercase labels and bare values —
+ * every fact given the same weight, so nothing led and the amount being checked
+ * against a statement looked no more important than the buyer's name.
+ */
+.pay-review { display: grid; gap: 16px; }
+
+.pay-review-amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid var(--brand-soft);
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+}
+
+.pay-review-label {
+  flex-basis: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.pay-review-amount strong {
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Two columns of label-over-value. A definition list because that is what it
+   is, and because the pairs then stay together when the dialog narrows. */
+.pay-review-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px 18px;
+  margin: 0;
+}
+
+.pay-review-facts > div { display: grid; gap: 3px; min-width: 0; }
+
+.pay-review-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.pay-review-facts dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+/*
+ * The UTR gets a box of its own.
+ *
+ * It is the string being matched character by character against a bank
+ * statement, and tabular figures plus letter-spacing are what make a
+ * transposed digit visible rather than merely present.
+ */
+.pay-review-utr {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-2);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.pay-review-act {
+  display: grid;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+
+.pay-review-check { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+.pay-review-check strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.btn-lg { padding: 10px 18px; font-size: 14px; }
+
+.pay-review-reject { display: grid; gap: 12px; }
+
+.pay-review-reject > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  /* The default marker sits too far from the text and cannot be coloured. */
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pay-review-reject > summary::-webkit-details-marker { display: none; }
+.pay-review-reject > summary::before { content: '▸'; font-size: 10px; transition: transform var(--fast) var(--ease); }
+.pay-review-reject[open] > summary::before { transform: rotate(90deg); }
+.pay-review-reject > summary:hover { color: var(--ink); }
+.pay-review-reject[open] > summary { color: var(--danger); }
+
+/* Coloured variants of the existing notice block. */
+.notice.is-success { border-color: color-mix(in srgb, var(--success) 35%, transparent); background: var(--success-soft); color: var(--success); }
+.notice.is-warn { border-color: color-mix(in srgb, var(--warn) 35%, transparent); background: var(--warn-soft); color: var(--warn); }
+.notice.is-danger { border-color: color-mix(in srgb, var(--danger) 35%, transparent); background: var(--danger-soft); color: var(--danger); }
+.notice code { font-family: var(--mono); font-size: 12px; }
+
+/* -------------------------------- reviews -------------------------------- */
+
+.stars { display: inline-flex; gap: 1px; font-size: 13px; letter-spacing: 0.5px; }
+.stars span { color: var(--line-strong); }
+.stars span.is-on { color: #e0a33c; }
+
+/*
+ * A review is one thought, so it occupies one cell.
+ *
+ * Rating, author and quote used to be three columns, which made the eye
+ * reassemble a single sentence from three places on every row — and the body
+ * column stretched the table until the date fell off the side of the screen.
+ */
+.table-reviews td { vertical-align: top; }
+.review-cell { max-width: 460px; display: grid; gap: 4px; padding-top: 12px; padding-bottom: 12px; }
+
+.review-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.review-author { font-size: 12.5px; font-weight: 600; }
+.review-title { font-size: 13px; }
+
+/*
+ * Three lines, clamped in CSS.
+ *
+ * Slicing at 130 characters in JS cut words in half and put an ellipsis in the
+ * middle of one; a line clamp breaks where the text actually wraps and adapts
+ * to the column it ends up in.
+ */
+.review-body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.review-product { font-weight: 500; max-width: 180px; }
+.nowrap { white-space: nowrap; }
+
+/* Fit feedback is the reason a garment comes back, so it is colour-coded: the
+   two failure directions must be distinguishable without reading. */
+.fit {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fit-small { background: var(--warn-soft); color: var(--warn); }
+.fit-large { background: var(--brand-soft); color: var(--brand); }
+.fit-true-to-size { background: var(--success-soft); color: var(--success); }
+
+.review-full { display: grid; gap: 14px; }
+.review-full-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.review-full-head .stars { font-size: 17px; }
+.review-full-rating { font-size: 13px; font-weight: 600; }
+.review-full-title { font-size: 16px; letter-spacing: -0.01em; }
+
+.review-full-body {
+  /* The shopper's own paragraphs survive. Collapsed to one block, a considered
+     three-paragraph review reads as a rant. */
+  white-space: pre-wrap;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  padding: 14px 16px;
+  border-left: 3px solid var(--line-strong);
+  background: var(--paper-2);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+@media (max-width: 900px) {
+  .review-cell { max-width: 100%; }
+  .review-product { max-width: 140px; }
+}

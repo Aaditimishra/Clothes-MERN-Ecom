@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { ConfirmDialog, Dialog, Empty, Field, Loading } from '../components/ui';
-import { AdminError, api } from '../lib/api';
+import { ConfirmDialog, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
+import { AdminError, api, query } from '../lib/api';
 import { formatDate, formatMoney, fromRupees, toRupees } from '../lib/format';
 import { useToast } from '../lib/toast';
-import type { AdminCoupon } from '../lib/types';
+import type { AdminCoupon, Paged } from '../lib/types';
+import { usePaging } from '../lib/paging';
 
 interface Draft {
   id?: string;
@@ -37,13 +38,14 @@ const EMPTY: Draft = {
 export const CouponsPage = () => {
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const { page, pageSize, setPage, setPageSize } = usePaging(25);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [deleting, setDeleting] = useState<AdminCoupon | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['coupons'],
-    queryFn: () => api<AdminCoupon[]>('/coupons'),
+    queryKey: ['coupons', page, pageSize],
+    queryFn: () => api<Paged<AdminCoupon>>(`/coupons${query({ page, pageSize })}`),
   });
 
   const done = (message: string) => {
@@ -90,7 +92,11 @@ export const CouponsPage = () => {
       <header className="topbar">
         <h1>Coupons</h1>
         <div className="topbar-actions">
-          <button type="button" className="btn btn-primary" onClick={() => setDraft(EMPTY)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setDraft(EMPTY)}
+          >
             New coupon
           </button>
         </div>
@@ -100,82 +106,97 @@ export const CouponsPage = () => {
         <section className="card">
           {isLoading ? (
             <Loading />
-          ) : data && data.length > 0 ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Code</th>
-                    <th>Offer</th>
-                    <th>Cap</th>
-                    <th>Min spend</th>
-                    <th className="num">Used</th>
-                    <th>Ends</th>
-                    <th>Status</th>
-                    <th className="tight" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((coupon) => (
-                    <tr key={coupon.id}>
-                      <td className="mono">
-                        <strong>{coupon.code}</strong>
-                      </td>
-                      <td>
-                        {coupon.type === 'percentage'
-                          ? `${coupon.percentage}% off`
-                          : `${formatMoney(coupon.amountOff)} off`}
-                        <div className="muted">{coupon.description}</div>
-                      </td>
-                      <td>{coupon.maxDiscount ? formatMoney(coupon.maxDiscount) : '—'}</td>
-                      <td>{coupon.minSpend ? formatMoney(coupon.minSpend) : '—'}</td>
-                      <td className="num">
-                        {coupon.usageCount}
-                        {coupon.usageLimit ? ` / ${coupon.usageLimit}` : ''}
-                      </td>
-                      <td className="muted">{formatDate(coupon.endsAt)}</td>
-                      <td>
-                        <span className={`badge badge-${coupon.isActive ? 'active' : 'archived'}`}>
-                          {coupon.isActive ? 'active' : 'paused'}
-                        </span>
-                      </td>
-                      <td className="tight">
-                        <div className="row">
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() =>
-                              setDraft({
-                                id: coupon.id,
-                                code: coupon.code,
-                                description: coupon.description,
-                                type: coupon.type,
-                                percentage: String(coupon.percentage ?? ''),
-                                amountOff: toRupees(coupon.amountOff),
-                                maxDiscount: toRupees(coupon.maxDiscount),
-                                minSpend: toRupees(coupon.minSpend),
-                                isActive: coupon.isActive,
-                                endsAt: coupon.endsAt ? coupon.endsAt.slice(0, 10) : '',
-                                usageLimit: String(coupon.usageLimit ?? ''),
-                              })
-                            }
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => setDeleting(coupon)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+          ) : data && data.items.length > 0 ? (
+            <>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Offer</th>
+                      <th>Cap</th>
+                      <th>Min spend</th>
+                      <th className="num">Used</th>
+                      <th>Ends</th>
+                      <th>Status</th>
+                      <th className="tight" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {data.items.map((coupon) => (
+                      <tr key={coupon.id}>
+                        <td className="mono">
+                          <strong>{coupon.code}</strong>
+                        </td>
+                        <td>
+                          {coupon.type === 'percentage'
+                            ? `${coupon.percentage}% off`
+                            : `${formatMoney(coupon.amountOff)} off`}
+                          <div className="muted">{coupon.description}</div>
+                        </td>
+                        <td>
+                          {coupon.maxDiscount ? formatMoney(coupon.maxDiscount) : '—'}
+                        </td>
+                        <td>{coupon.minSpend ? formatMoney(coupon.minSpend) : '—'}</td>
+                        <td className="num">
+                          {coupon.usageCount}
+                          {coupon.usageLimit ? ` / ${coupon.usageLimit}` : ''}
+                        </td>
+                        <td className="muted">{formatDate(coupon.endsAt)}</td>
+                        <td>
+                          <span
+                            className={`badge badge-${coupon.isActive ? 'active' : 'archived'}`}
+                          >
+                            {coupon.isActive ? 'active' : 'paused'}
+                          </span>
+                        </td>
+                        <td className="tight">
+                          <div className="row">
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() =>
+                                setDraft({
+                                  id: coupon.id,
+                                  code: coupon.code,
+                                  description: coupon.description,
+                                  type: coupon.type,
+                                  percentage: String(coupon.percentage ?? ''),
+                                  amountOff: toRupees(coupon.amountOff),
+                                  maxDiscount: toRupees(coupon.maxDiscount),
+                                  minSpend: toRupees(coupon.minSpend),
+                                  isActive: coupon.isActive,
+                                  endsAt: coupon.endsAt ? coupon.endsAt.slice(0, 10) : '',
+                                  usageLimit: String(coupon.usageLimit ?? ''),
+                                })
+                              }
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              onClick={() => setDeleting(coupon)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                page={data.page}
+                pageCount={data.pageCount}
+                total={data.total}
+                pageSize={pageSize}
+                onChange={setPage}
+                onPageSize={setPageSize}
+                noun="coupon"
+              />
+            </>
           ) : (
             <Empty title="No coupons yet" />
           )}
@@ -227,11 +248,17 @@ export const CouponsPage = () => {
             </Field>
           </div>
 
-          <Field label="Description" hint="Shown in the bag when the code is applied." error={fields.description}>
+          <Field
+            label="Description"
+            hint="Shown in the bag when the code is applied."
+            error={fields.description}
+          >
             <input
               className="input"
               value={draft.description}
-              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+              onChange={(event) =>
+                setDraft({ ...draft, description: event.target.value })
+              }
             />
           </Field>
 
@@ -244,7 +271,9 @@ export const CouponsPage = () => {
                   value={draft.percentage}
                   min="1"
                   max="100"
-                  onChange={(event) => setDraft({ ...draft, percentage: event.target.value })}
+                  onChange={(event) =>
+                    setDraft({ ...draft, percentage: event.target.value })
+                  }
                 />
               </Field>
             ) : (
@@ -254,7 +283,9 @@ export const CouponsPage = () => {
                   className="input"
                   value={draft.amountOff}
                   min="1"
-                  onChange={(event) => setDraft({ ...draft, amountOff: event.target.value })}
+                  onChange={(event) =>
+                    setDraft({ ...draft, amountOff: event.target.value })
+                  }
                 />
               </Field>
             )}
@@ -268,7 +299,9 @@ export const CouponsPage = () => {
                 className="input"
                 value={draft.maxDiscount}
                 min="0"
-                onChange={(event) => setDraft({ ...draft, maxDiscount: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, maxDiscount: event.target.value })
+                }
               />
             </Field>
 
@@ -298,7 +331,9 @@ export const CouponsPage = () => {
                 className="input"
                 value={draft.usageLimit}
                 min="1"
-                onChange={(event) => setDraft({ ...draft, usageLimit: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, usageLimit: event.target.value })
+                }
               />
             </Field>
           </div>
@@ -313,8 +348,8 @@ export const CouponsPage = () => {
           </label>
 
           <p className="notice">
-            A percentage coupon without a cap gives away 25% of a ₹40,000 bag. The cap
-            is what makes these safe to run.
+            A percentage coupon without a cap gives away 25% of a ₹40,000 bag. The cap is
+            what makes these safe to run.
           </p>
         </Dialog>
       ) : null}

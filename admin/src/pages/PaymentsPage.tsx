@@ -5,6 +5,7 @@ import type { OrderView, PaymentStatus } from '@shop/shared';
 import { Badge, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
 import { api, query } from '../lib/api';
 import { formatDate, formatMoney } from '../lib/format';
+import { usePaging } from '../lib/paging';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { Paged } from '../lib/types';
@@ -17,6 +18,15 @@ import type { Paged } from '../lib/types';
  * arrive". Mixing them buries the one screen where a shopper is blocked on
  * staff action inside the one screen that is always busy.
  */
+
+/** `bank_transfer` is a column name, not something a shopkeeper says. */
+const METHOD_LABELS: Partial<Record<string, string>> = {
+  upi: 'UPI',
+  bank_transfer: 'Bank transfer',
+  card: 'Card',
+  netbanking: 'Net banking',
+  cod: 'Cash on delivery',
+};
 
 type PaymentsPage = Paged<OrderView> & { counts: Partial<Record<PaymentStatus, number>> };
 
@@ -35,7 +45,7 @@ export const PaymentsPage = () => {
   const { notify } = useToast();
   const queryClient = useQueryClient();
 
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize, reset } = usePaging(25);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<PaymentStatus>('verifying');
   const [open, setOpen] = useState<OrderView | null>(null);
@@ -44,10 +54,10 @@ export const PaymentsPage = () => {
   const canVerify = can('payment.verify');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['payments', page, search, tab],
+    queryKey: ['payments', page, pageSize, search, tab],
     queryFn: () =>
       api<PaymentsPage>(
-        `/payments${query({ page, pageSize: 25, search, paymentStatus: tab })}`,
+        `/payments${query({ page, pageSize, search, paymentStatus: tab })}`,
       ),
   });
 
@@ -59,7 +69,8 @@ export const PaymentsPage = () => {
   };
 
   const verify = useMutation({
-    mutationFn: (id: string) => api<OrderView>(`/payments/${id}/verify`, { method: 'POST' }),
+    mutationFn: (id: string) =>
+      api<OrderView>(`/payments/${id}/verify`, { method: 'POST' }),
     onSuccess: (order) => {
       refresh();
       setOpen(null);
@@ -99,7 +110,7 @@ export const PaymentsPage = () => {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
+              reset();
             }}
           />
         </div>
@@ -118,7 +129,7 @@ export const PaymentsPage = () => {
               className={`tab${tab === entry.value ? ' is-active' : ''}`}
               onClick={() => {
                 setTab(entry.value);
-                setPage(1);
+                reset();
               }}
             >
               {entry.label}
@@ -179,7 +190,10 @@ export const PaymentsPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="payment"
               />
             </>
           ) : (
@@ -196,45 +210,93 @@ export const PaymentsPage = () => {
 
       {open ? (
         <Dialog title={`Payment · ${open.reference}`} onClose={() => setOpen(null)}>
-          <div className="stack">
-            <Field label="Amount">
+          <div className="pay-review">
+            {/*
+              The amount leads, because it is the only figure being checked
+              against a bank statement — everything else on this screen exists to
+              identify WHICH line on that statement.
+            */}
+            <div className="pay-review-amount">
+              <span className="pay-review-label">Amount to look for</span>
               <strong>{formatMoney(open.totals.grandTotal)}</strong>
-            </Field>
-            <Field label="Method">
-              {open.paymentMethod} · {open.payment.provider}
-            </Field>
-            <Field label="Reference the shopper gave">
-              <span className="mono">{open.payment.reference ?? '—'}</span>
-            </Field>
-            <Field label="Claimed">
-              {open.payment.claimedAt ? formatDate(open.payment.claimedAt) : '—'}
-              {open.payment.claimCount > 1 ? ` · attempt ${open.payment.claimCount}` : ''}
-            </Field>
+              <Badge value={open.paymentStatus} />
+            </div>
+
+            <dl className="pay-review-facts">
+              <div>
+                <dt>Reference the shopper gave</dt>
+                <dd>
+                  <code className="pay-review-utr">{open.payment.reference ?? '—'}</code>
+                  {open.payment.reference ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => {
+                        void navigator.clipboard
+                          ?.writeText(open.payment.reference ?? '')
+                          .then(() => notify('Reference copied'));
+                      }}
+                    >
+                      Copy
+                    </button>
+                  ) : null}
+                </dd>
+              </div>
+
+              <div>
+                <dt>How they paid</dt>
+                <dd>
+                  {METHOD_LABELS[open.paymentMethod] ?? open.paymentMethod}
+                  <span className="muted"> · confirmed by hand</span>
+                </dd>
+              </div>
+
+              <div>
+                <dt>Said they paid</dt>
+                <dd>
+                  {open.payment.claimedAt ? formatDate(open.payment.claimedAt) : '—'}
+                  {open.payment.claimCount > 1 ? (
+                    <span className="muted"> · attempt {open.payment.claimCount}</span>
+                  ) : null}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Ordered by</dt>
+                <dd>{open.shippingAddress.fullName}</dd>
+              </div>
+            </dl>
+
             {open.payment.verifiedAt ? (
-              <Field label="Confirmed">
-                {formatDate(open.payment.verifiedAt)}
-                {open.payment.verifiedBy ? ` by ${open.payment.verifiedBy}` : ''}
-              </Field>
+              <p className="notice is-success">
+                Confirmed {formatDate(open.payment.verifiedAt)}
+                {open.payment.verifiedBy ? ` by ${open.payment.verifiedBy}` : ''}.
+              </p>
             ) : null}
+
             {open.payment.rejectionReason ? (
-              <Field label="Last sent back">{open.payment.rejectionReason}</Field>
+              <p className="notice is-warn">
+                Last sent back: {open.payment.rejectionReason}
+              </p>
             ) : null}
 
             {canVerify && open.paymentStatus === 'verifying' ? (
               <>
                 {/*
-                  Said out loud, because the button below cannot be undone by
-                  editing a field back: marking this paid ships the goods and
-                  books the revenue.
+                  Said immediately above the button, not in a paragraph further
+                  up: this is the one action in the panel that cannot be undone
+                  by editing a field back, and the warning has to be where the
+                  finger is going.
                 */}
-                <p className="muted">
-                  Check your bank statement for {formatMoney(open.totals.grandTotal)} against
-                  this reference before confirming.
-                </p>
-                <div className="row-actions">
+                <div className="pay-review-act">
+                  <p className="pay-review-check">
+                    Find <strong>{formatMoney(open.totals.grandTotal)}</strong> against
+                    this reference on your statement before confirming. Marking it paid
+                    ships the goods and books the revenue.
+                  </p>
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-primary btn-lg"
                     disabled={busy}
                     onClick={() => verify.mutate(open.id)}
                   >
@@ -242,31 +304,39 @@ export const PaymentsPage = () => {
                   </button>
                 </div>
 
-                <Field label="Or send it back">
-                  <input
-                    className="input"
-                    placeholder="What was wrong? The shopper reads this."
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                  />
-                </Field>
-                <div className="row-actions">
+                <details className="pay-review-reject">
+                  {/*
+                    Folded, because rejecting is the rarer answer and an open
+                    text box beside the primary button invites the wrong one.
+                  */}
+                  <summary>The money has not arrived</summary>
+                  <Field
+                    label="What should the shopper do?"
+                    hint="They read this on their order page, so it has to be something they can act on."
+                  >
+                    <input
+                      className="input"
+                      placeholder="e.g. Nothing matching that reference reached our account."
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                  </Field>
                   <button
                     type="button"
                     className="btn btn-danger"
                     disabled={busy || reason.trim().length < 4}
                     onClick={() => reject.mutate({ id: open.id, reason: reason.trim() })}
                   >
-                    {reject.isPending ? 'Sending…' : 'Not received'}
+                    {reject.isPending ? 'Sending…' : 'Send it back'}
                   </button>
-                </div>
+                </details>
               </>
             ) : null}
 
             {!canVerify && open.paymentStatus === 'verifying' ? (
-              <p className="muted">
-                You do not have the <code>payment.verify</code> permission, so you can read
-                this but not confirm it.
+              <p className="notice is-warn">
+                You can read this but not confirm it — that needs the{' '}
+                <code>payment.verify</code> permission.
               </p>
             ) : null}
           </div>

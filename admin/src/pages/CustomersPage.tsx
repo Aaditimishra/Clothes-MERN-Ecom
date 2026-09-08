@@ -4,17 +4,18 @@ import { useState } from 'react';
 import { Empty, Loading, Pager } from '../components/ui';
 import { api, downloadCsv, query } from '../lib/api';
 import { formatDate } from '../lib/format';
+import { usePaging } from '../lib/paging';
 import { useSession } from '../lib/session';
 import type { AdminCustomer, Paged } from '../lib/types';
 
 export const CustomersPage = () => {
   const { can } = useSession();
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize, reset } = usePaging(25);
   const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', page, search],
-    queryFn: () => api<Paged<AdminCustomer>>(`/customers${query({ page, pageSize: 25, search })}`),
+    queryKey: ['customers', page, pageSize, search],
+    queryFn: () => api<Paged<AdminCustomer>>(`/customers${query({ page, pageSize, search })}`),
   });
 
   return (
@@ -38,7 +39,7 @@ export const CustomersPage = () => {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
+              reset();
             }}
           />
         </div>
@@ -82,7 +83,10 @@ export const CustomersPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="customer"
               />
             </>
           ) : (

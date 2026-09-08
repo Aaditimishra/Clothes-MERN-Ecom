@@ -37,6 +37,9 @@ const postSchema = new Schema(
 );
 
 postSchema.index({ isPublished: 1, publishedAt: -1 });
+// The ADMIN journal list is unfiltered, so the compound index above — which
+// leads with `isPublished` — cannot serve its sort.
+postSchema.index({ publishedAt: -1, _id: 1 });
 
 export type PostDoc = InferSchemaType<typeof postSchema>;
 export const PostModel = model('Post', postSchema);

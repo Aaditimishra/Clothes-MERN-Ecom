@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { Dialog, Empty, Loading, Pager } from '../components/ui';
 import { api, query } from '../lib/api';
+import { usePaging } from '../lib/paging';
 import { formatDate } from '../lib/format';
 
 interface EmailItem {
@@ -18,15 +19,15 @@ interface EmailItem {
 }
 
 export const EmailsPage = () => {
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize, reset } = usePaging(25);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<EmailItem | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['emails', page, search],
+    queryKey: ['emails', page, pageSize, search],
     queryFn: () =>
       api<{ items: EmailItem[]; total: number; page: number; pageCount: number }>(
-        `/emails${query({ page, pageSize: 25, search })}`,
+        `/emails${query({ page, pageSize, search })}`,
       ),
   });
 
@@ -42,7 +43,7 @@ export const EmailsPage = () => {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
+              reset();
             }}
           />
         </div>
@@ -108,7 +109,10 @@ export const EmailsPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="email"
               />
             </>
           ) : (

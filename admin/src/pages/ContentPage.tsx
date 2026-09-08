@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { ConfirmDialog, Dialog, Empty, Field, Loading } from '../components/ui';
-import { api } from '../lib/api';
+import { ConfirmDialog, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
+import { api, query } from '../lib/api';
+import { usePaging } from '../lib/paging';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { PageAdminView, PostAdminView } from '../lib/types';
+import type { Paged, PageAdminView, PostAdminView } from '../lib/types';
 
 type Tab = 'journal' | 'pages';
 
@@ -64,6 +65,10 @@ export const ContentPage = () => {
   const { can } = useSession();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  // Two independent lists on one screen, so two independent pagers — paging the
+  // journal must not jump the footer pages back to the top.
+  const journalPaging = usePaging(25);
+  const pagePaging = usePaging(25);
   const [tab, setTab] = useState<Tab>('journal');
   const [draft, setDraft] = useState<PostDraft | null>(null);
   const [deleting, setDeleting] = useState<PostAdminView | null>(null);
@@ -71,13 +76,19 @@ export const ContentPage = () => {
   const canManage = can('cms.manage');
 
   const posts = useQuery({
-    queryKey: ['admin-journal'],
-    queryFn: () => api<PostAdminView[]>('/journal'),
+    queryKey: ['admin-journal', journalPaging.page, journalPaging.pageSize],
+    queryFn: () =>
+      api<Paged<PostAdminView>>(
+        `/journal${query({ page: journalPaging.page, pageSize: journalPaging.pageSize })}`,
+      ),
   });
 
   const pages = useQuery({
-    queryKey: ['admin-pages'],
-    queryFn: () => api<PageAdminView[]>('/pages'),
+    queryKey: ['admin-pages', pagePaging.page, pagePaging.pageSize],
+    queryFn: () =>
+      api<Paged<PageAdminView>>(
+        `/pages${query({ page: pagePaging.page, pageSize: pagePaging.pageSize })}`,
+      ),
     enabled: tab === 'pages',
   });
 
@@ -131,7 +142,11 @@ export const ContentPage = () => {
         <h1>Content</h1>
         <div className="topbar-actions">
           {canManage && tab === 'journal' ? (
-            <button type="button" className="btn btn-primary" onClick={() => setDraft(EMPTY_POST)}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setDraft(EMPTY_POST)}
+            >
               New entry
             </button>
           ) : null}
@@ -168,7 +183,7 @@ export const ContentPage = () => {
               <div className="card">
                 <Loading />
               </div>
-            ) : posts.data && posts.data.length > 0 ? (
+            ) : posts.data && posts.data.items.length > 0 ? (
               <div className="card">
                 <div className="table-wrap">
                   <table>
@@ -183,7 +198,7 @@ export const ContentPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {posts.data.map((post) => (
+                      {posts.data.items.map((post) => (
                         <tr key={post.id}>
                           <td>
                             <strong>{post.title}</strong>
@@ -220,6 +235,15 @@ export const ContentPage = () => {
                     </tbody>
                   </table>
                 </div>
+                <Pager
+                  page={posts.data.page}
+                  pageCount={posts.data.pageCount}
+                  total={posts.data.total}
+                  pageSize={journalPaging.pageSize}
+                  onChange={journalPaging.setPage}
+                  onPageSize={journalPaging.setPageSize}
+                  noun="entry"
+                />
               </div>
             ) : (
               <div className="card">
@@ -241,7 +265,7 @@ export const ContentPage = () => {
               <div className="card">
                 <Loading />
               </div>
-            ) : pages.data && pages.data.length > 0 ? (
+            ) : pages.data && pages.data.items.length > 0 ? (
               <div className="card">
                 <div className="table-wrap">
                   <table>
@@ -254,7 +278,7 @@ export const ContentPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {pages.data.map((page) => (
+                      {pages.data.items.map((page) => (
                         <tr key={page.id}>
                           <td>
                             <strong>{page.title}</strong>
@@ -272,6 +296,15 @@ export const ContentPage = () => {
                     </tbody>
                   </table>
                 </div>
+                <Pager
+                  page={pages.data.page}
+                  pageCount={pages.data.pageCount}
+                  total={pages.data.total}
+                  pageSize={pagePaging.pageSize}
+                  onChange={pagePaging.setPage}
+                  onPageSize={pagePaging.setPageSize}
+                  noun="page"
+                />
               </div>
             ) : (
               <div className="card">
@@ -311,7 +344,10 @@ export const ContentPage = () => {
               />
             </Field>
 
-            <Field label="Slug" hint={draft.id ? undefined : 'Leave empty to build it from the title.'}>
+            <Field
+              label="Slug"
+              hint={draft.id ? undefined : 'Leave empty to build it from the title.'}
+            >
               <input
                 className="input"
                 value={draft.slug}
@@ -344,7 +380,9 @@ export const ContentPage = () => {
                 min={1}
                 max={60}
                 value={draft.readMinutes}
-                onChange={(event) => patch({ readMinutes: Number(event.target.value) || 1 })}
+                onChange={(event) =>
+                  patch({ readMinutes: Number(event.target.value) || 1 })
+                }
               />
             </Field>
 
@@ -352,7 +390,9 @@ export const ContentPage = () => {
               <select
                 className="input"
                 value={draft.isPublished ? 'live' : 'draft'}
-                onChange={(event) => patch({ isPublished: event.target.value === 'live' })}
+                onChange={(event) =>
+                  patch({ isPublished: event.target.value === 'live' })
+                }
               >
                 <option value="live">Live on the shop</option>
                 <option value="draft">Draft — hidden</option>
@@ -370,7 +410,10 @@ export const ContentPage = () => {
           </Field>
 
           <div className="form-grid">
-            <Field label="Cover image URL" hint="Upload one under Media and paste its URL.">
+            <Field
+              label="Cover image URL"
+              hint="Upload one under Media and paste its URL."
+            >
               <input
                 className="input"
                 value={draft.coverUrl}
@@ -378,7 +421,10 @@ export const ContentPage = () => {
               />
             </Field>
 
-            <Field label="Cover alt text" hint="Describe the photograph for screen readers.">
+            <Field
+              label="Cover alt text"
+              hint="Describe the photograph for screen readers."
+            >
               <input
                 className="input"
                 value={draft.coverAlt}
@@ -399,7 +445,10 @@ export const ContentPage = () => {
             />
           </Field>
 
-          <Field label="Body" hint="Blank line between paragraphs. Start a line with ## for a heading.">
+          <Field
+            label="Body"
+            hint="Blank line between paragraphs. Start a line with ## for a heading."
+          >
             <textarea
               className="input mono"
               rows={16}

@@ -22,6 +22,7 @@ import { BLOCK_TYPES } from '../../models/page.model';
 import { toOrderView } from '../order/order.view';
 import { applyStatusChangeToStock } from '../order/stock.service';
 import { buildDashboard } from './dashboard.service';
+import { paginate } from '../../lib/paginate';
 import {
   rejectManualPayment,
   verifyManualPayment,
@@ -254,6 +255,7 @@ adminRouter.get(
       items: (items as ProductDoc[]).map(toAdminProductSummary),
       total,
       page: query.page,
+      pageSize: query.pageSize,
       pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
     });
   }),
@@ -490,8 +492,8 @@ adminRouter.get(
   '/taxonomy',
   requirePermission('catalog.view'),
   asyncHandler(async (req, res) => {
-    const { group } = parseQuery(req, z.object({ group: z.string().optional() }));
-    res.json(await listAllTerms(group as never));
+    const query = parseQuery(req, pageQuerySchema.extend({ group: z.string().optional() }));
+    res.json(await listAllTerms(query.group as never, query));
   }),
 );
 
@@ -539,9 +541,17 @@ adminRouter.delete(
 adminRouter.get(
   '/size-charts',
   requirePermission('catalog.view'),
-  asyncHandler(async (_req, res) => {
-    const charts = await SizeChartModel.find().sort({ name: 1 }).lean();
-    res.json(charts.map((chart) => toSizeChartView(chart as never)));
+  asyncHandler(async (req, res) => {
+    const query = parseQuery(req, pageQuerySchema);
+
+    res.json(
+      await paginate(SizeChartModel, {
+        ...(query.search ? { filter: { name: { $regex: query.search, $options: 'i' } } } : {}),
+        sort: { name: 1, _id: 1 },
+        query,
+        map: (chart) => toSizeChartView(chart as never),
+      }),
+    );
   }),
 );
 
@@ -677,6 +687,7 @@ adminRouter.get(
       items: (items as OrderDoc[]).map(toOrderView),
       total,
       page: query.page,
+      pageSize: query.pageSize,
       pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
     });
   }),
@@ -791,6 +802,7 @@ adminRouter.get(
       items: (items as OrderDoc[]).map(toOrderView),
       total,
       page: query.page,
+      pageSize: query.pageSize,
       pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
       counts: Object.fromEntries(counts.map((row) => [row._id, row.count])),
     });
@@ -891,6 +903,7 @@ adminRouter.get(
       })),
       total,
       page: query.page,
+      pageSize: query.pageSize,
       pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
     });
   }),
@@ -901,24 +914,32 @@ adminRouter.get(
 adminRouter.get(
   '/coupons',
   requirePermission('promotion.manage'),
-  asyncHandler(async (_req, res) => {
-    const coupons = await CouponModel.find().sort({ createdAt: -1 }).lean();
+  asyncHandler(async (req, res) => {
+    const query = parseQuery(req, pageQuerySchema);
+
     res.json(
-      coupons.map((coupon) => ({
-        id: coupon._id,
-        code: coupon.code,
-        description: coupon.description,
-        type: coupon.type,
-        percentage: coupon.percentage ?? null,
-        amountOff: coupon.amountOff ?? null,
-        maxDiscount: coupon.maxDiscount ?? null,
-        minSpend: coupon.minSpend ?? null,
-        isActive: coupon.isActive ?? true,
-        startsAt: coupon.startsAt?.toISOString() ?? null,
-        endsAt: coupon.endsAt?.toISOString() ?? null,
-        usageLimit: coupon.usageLimit ?? null,
-        usageCount: coupon.usageCount ?? 0,
-      })),
+      await paginate(CouponModel, {
+        ...(query.search
+          ? { filter: { code: { $regex: query.search.toUpperCase(), $options: 'i' } } }
+          : {}),
+        sort: { createdAt: -1, _id: 1 },
+        query,
+        map: (coupon) => ({
+          id: coupon._id,
+          code: coupon.code,
+          description: coupon.description,
+          type: coupon.type,
+          percentage: coupon.percentage ?? null,
+          amountOff: coupon.amountOff ?? null,
+          maxDiscount: coupon.maxDiscount ?? null,
+          minSpend: coupon.minSpend ?? null,
+          isActive: coupon.isActive ?? true,
+          startsAt: coupon.startsAt?.toISOString() ?? null,
+          endsAt: coupon.endsAt?.toISOString() ?? null,
+          usageLimit: coupon.usageLimit ?? null,
+          usageCount: coupon.usageCount ?? 0,
+        }),
+      }),
     );
   }),
 );
@@ -1020,6 +1041,7 @@ adminRouter.get(
       })),
       total,
       page: query.page,
+      pageSize: query.pageSize,
       pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
     });
   }),
@@ -1087,8 +1109,8 @@ const pageSchema = z.object({
 adminRouter.get(
   '/pages',
   requirePermission('catalog.view'),
-  asyncHandler(async (_req, res) => {
-    res.json(await listPages());
+  asyncHandler(async (req, res) => {
+    res.json(await listPages(parseQuery(req, pageQuerySchema)));
   }),
 );
 
@@ -1136,8 +1158,8 @@ const postSchema = z.object({
 adminRouter.get(
   '/journal',
   requirePermission('catalog.view'),
-  asyncHandler(async (_req, res) => {
-    res.json(await listAllPosts());
+  asyncHandler(async (req, res) => {
+    res.json(await listAllPosts(parseQuery(req, pageQuerySchema)));
   }),
 );
 
@@ -1172,7 +1194,10 @@ adminRouter.get(
   '/notifications',
   asyncHandler(async (req, res) => {
     const staff = staffOf(req);
-    res.json(await listNotifications({ id: staff.id, permissions: staff.permissions }));
+    const query = parseQuery(req, pageQuerySchema);
+    res.json(
+      await listNotifications({ id: staff.id, permissions: staff.permissions }, query),
+    );
   }),
 );
 
@@ -1266,8 +1291,8 @@ adminRouter.put(
 adminRouter.get(
   '/staff',
   requirePermission('staff.manage'),
-  asyncHandler(async (_req, res) => {
-    res.json(await listStaff());
+  asyncHandler(async (req, res) => {
+    res.json(await listStaff(parseQuery(req, pageQuerySchema)));
   }),
 );
 

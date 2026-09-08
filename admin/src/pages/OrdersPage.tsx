@@ -10,6 +10,7 @@ import {
 import { Badge, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
 import { api, downloadCsv, query } from '../lib/api';
 import { formatDate, formatMoney } from '../lib/format';
+import { usePaging } from '../lib/paging';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { Paged } from '../lib/types';
@@ -38,7 +39,7 @@ export const OrdersPage = () => {
   const { notify } = useToast();
   const queryClient = useQueryClient();
 
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize, reset } = usePaging(25);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [open, setOpen] = useState<OrderView | null>(null);
@@ -47,8 +48,8 @@ export const OrdersPage = () => {
   const canManage = can('order.manage');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', page, search, status],
-    queryFn: () => api<Paged<OrderView>>(`/orders${query({ page, pageSize: 25, search, status })}`),
+    queryKey: ['orders', page, pageSize, search, status],
+    queryFn: () => api<Paged<OrderView>>(`/orders${query({ page, pageSize, search, status })}`),
   });
 
   const update = useMutation({
@@ -95,7 +96,7 @@ export const OrdersPage = () => {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
+              reset();
             }}
           />
           {can('data.export') ? (
@@ -113,7 +114,7 @@ export const OrdersPage = () => {
             value={status}
             onChange={(event) => {
               setStatus(event.target.value);
-              setPage(1);
+              reset();
             }}
           >
             <option value="">All statuses</option>
@@ -179,7 +180,10 @@ export const OrdersPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="order"
               />
             </>
           ) : (

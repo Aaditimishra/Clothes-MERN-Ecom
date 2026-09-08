@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { ConfirmDialog, Empty, Loading, Pager } from '../components/ui';
+import { ConfirmDialog, Dialog, Empty, Loading, Pager } from '../components/ui';
 import { api, query } from '../lib/api';
+import { usePaging } from '../lib/paging';
 import { formatDate } from '../lib/format';
 import { useToast } from '../lib/toast';
 import type { AdminReview, Paged } from '../lib/types';
@@ -13,15 +14,33 @@ const FIT_LABELS: Record<string, string> = {
   large: 'Runs large',
 };
 
+/**
+ * Five glyphs, not a number.
+ *
+ * "4★" is read as text and compared digit by digit; a row of stars is counted
+ * at a glance, which is the whole job when scanning a page of them for the
+ * one-star complaints.
+ */
+const Stars = ({ rating }: { rating: number }) => (
+  <span className="stars" role="img" aria-label={`${rating} out of 5`}>
+    {[1, 2, 3, 4, 5].map((step) => (
+      <span key={step} className={step <= rating ? 'is-on' : ''} aria-hidden="true">
+        ★
+      </span>
+    ))}
+  </span>
+);
+
 export const ReviewsPage = () => {
   const { notify } = useToast();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
+  const { page, pageSize, setPage, setPageSize } = usePaging(25);
   const [deleting, setDeleting] = useState<AdminReview | null>(null);
+  const [open, setOpen] = useState<AdminReview | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['reviews', page],
-    queryFn: () => api<Paged<AdminReview>>(`/reviews${query({ page, pageSize: 25 })}`),
+    queryKey: ['reviews', page, pageSize],
+    queryFn: () => api<Paged<AdminReview>>(`/reviews${query({ page, pageSize })}`),
   });
 
   const remove = useMutation({
@@ -41,7 +60,12 @@ export const ReviewsPage = () => {
   return (
     <>
       <header className="topbar">
-        <h1>Reviews</h1>
+        <div>
+          <h1>Reviews</h1>
+          <p className="topbar-sub">
+            {data ? `${data.total.toLocaleString('en-IN')} in total` : 'Loading…'}
+          </p>
+        </div>
       </header>
 
       <div className="page">
@@ -51,13 +75,11 @@ export const ReviewsPage = () => {
           ) : data && data.items.length > 0 ? (
             <>
               <div className="table-wrap">
-                <table>
+                <table className="table-reviews">
                   <thead>
                     <tr>
-                      <th>Product</th>
-                      <th>Author</th>
-                      <th className="num">Rating</th>
                       <th>Review</th>
+                      <th>Product</th>
                       <th>Fit</th>
                       <th>Date</th>
                       <th className="tight" />
@@ -66,33 +88,58 @@ export const ReviewsPage = () => {
                   <tbody>
                     {data.items.map((review) => (
                       <tr key={review.id}>
-                        <td>
-                          <strong>{review.productName}</strong>
-                        </td>
-                        <td>
-                          {review.authorName}
-                          {review.isVerifiedPurchase ? (
-                            <>
-                              <br />
+                        {/*
+                          Rating, author and the quote in ONE cell.
+                          Spread across three columns they were three unrelated
+                          fragments the eye had to reassemble on every row; a
+                          review is one thought and reads as one block.
+                        */}
+                        <td className="review-cell">
+                          <div className="review-top">
+                            <Stars rating={review.rating} />
+                            <span className="review-author">{review.authorName}</span>
+                            {review.isVerifiedPurchase ? (
                               <span className="badge badge-active">verified</span>
-                            </>
+                            ) : null}
+                          </div>
+                          {review.title ? (
+                            <strong className="review-title">{review.title}</strong>
                           ) : null}
+                          {/*
+                            Clamped by CSS rather than sliced in JS. Three lines
+                            of any width, no "…" welded into the middle of a
+                            word, and the full text is one click away.
+                          */}
+                          <p className="review-body">{review.body}</p>
                         </td>
-                        <td className="num">{review.rating}★</td>
-                        <td style={{ maxWidth: 380 }}>
-                          {review.title ? <strong>{review.title}</strong> : null}
-                          <div className="muted">{review.body.slice(0, 130)}…</div>
+                        <td className="review-product">{review.productName}</td>
+                        <td>
+                          {review.fitFeedback ? (
+                            <span className={`fit fit-${review.fitFeedback}`}>
+                              {FIT_LABELS[review.fitFeedback]}
+                            </span>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
                         </td>
-                        <td>{review.fitFeedback ? FIT_LABELS[review.fitFeedback] : '—'}</td>
-                        <td className="muted">{formatDate(review.createdAt)}</td>
+                        <td className="muted nowrap">{formatDate(review.createdAt)}</td>
                         <td className="tight">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => setDeleting(review)}
-                          >
-                            Remove
-                          </button>
+                          <div className="row">
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => setOpen(review)}
+                            >
+                              Read
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              onClick={() => setDeleting(review)}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -103,14 +150,72 @@ export const ReviewsPage = () => {
                 page={data.page}
                 pageCount={data.pageCount}
                 total={data.total}
+                pageSize={pageSize}
                 onChange={setPage}
+                onPageSize={setPageSize}
+                noun="review"
               />
             </>
           ) : (
-            <Empty title="No reviews yet" />
+            <Empty title="No reviews yet">
+              <span>Reviews appear here once shoppers start writing them.</span>
+            </Empty>
           )}
         </section>
       </div>
+
+      {open ? (
+        <Dialog title="Review" onClose={() => setOpen(null)}>
+          <div className="review-full">
+            <div className="review-full-head">
+              <Stars rating={open.rating} />
+              <span className="review-full-rating">{open.rating} out of 5</span>
+              {open.isVerifiedPurchase ? (
+                <span className="badge badge-active">verified purchase</span>
+              ) : null}
+            </div>
+
+            {open.title ? <h3 className="review-full-title">{open.title}</h3> : null}
+            {/*
+              `pre-wrap`, so the paragraphs the shopper typed survive. Collapsed
+              to one block, a considered three-paragraph review reads as a rant.
+            */}
+            <p className="review-full-body">{open.body}</p>
+
+            <dl className="pay-review-facts">
+              <div>
+                <dt>Product</dt>
+                <dd>{open.productName}</dd>
+              </div>
+              <div>
+                <dt>Author</dt>
+                <dd>{open.authorName}</dd>
+              </div>
+              <div>
+                <dt>Fit</dt>
+                <dd>{open.fitFeedback ? FIT_LABELS[open.fitFeedback] : 'Not said'}</dd>
+              </div>
+              <div>
+                <dt>Written</dt>
+                <dd>{formatDate(open.createdAt)}</dd>
+              </div>
+            </dl>
+
+            <div className="row-actions">
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  setDeleting(open);
+                  setOpen(null);
+                }}
+              >
+                Remove this review
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      ) : null}
 
       {deleting ? (
         <ConfirmDialog
