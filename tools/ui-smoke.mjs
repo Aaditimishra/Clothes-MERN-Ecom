@@ -135,18 +135,26 @@ const run = async () => {
       // Scaffolding, folded away: four accounts and a password printed under the
       // form was the loudest thing on the screen.
       demoFolded: Boolean(demo) && !demo.open,
+      /*
+        Measured against the FIELDS, not the card.
+        The card has padding, so "as wide as the card" was never true and the
+        check only passed while the card had none — it went red the moment the
+        card got the padding it needed.
+      */
       submitFullWidth: (() => {
         const button = document.querySelector('.login-card button[type="submit"]');
-        const card = document.querySelector('.login-card');
-        if (!button || !card) return false;
-        return button.getBoundingClientRect().width > card.getBoundingClientRect().width - 4;
+        const field = document.querySelector('.login-card input[type="email"]');
+        if (!button || !field) return false;
+        return (
+          Math.abs(button.getBoundingClientRect().width - field.getBoundingClientRect().width) < 2
+        );
       })(),
     };
   });
   check('there is a brand panel beside the form', login.hasBrandPanel);
   check('it is tinted from the accent', login.brandTinted);
   check('the demo accounts are folded away', login.demoFolded);
-  check('the submit button fills the card', login.submitFullWidth);
+  check('the submit button lines up with the fields', login.submitFullWidth);
 
   // The brand half is decoration, so it is the half that goes on a phone.
   await page.setViewport({ width: 420, height: 900 });

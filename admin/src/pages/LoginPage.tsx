@@ -11,6 +11,7 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // A reset link lands on the same origin with a token, so the screen it needs
   // is decided here rather than by a route only reachable from an email.
@@ -87,6 +88,11 @@ export const LoginPage = () => {
           <li>Watch what is selling, day by day</li>
           <li>Change the shop without a developer</li>
         </ul>
+
+        <p className="login-brand-foot">
+          <span>Threadline admin</span>
+          <code>v1.0</code>
+        </p>
       </aside>
 
       <div className="login-panel">
@@ -129,15 +135,47 @@ export const LoginPage = () => {
               label={mode === 'reset' ? 'New password' : 'Password'}
               hint={mode === 'reset' ? 'At least 12 characters.' : undefined}
             >
-              <input
-                name="password"
-                type="password"
-                className="input"
-                placeholder="••••••••••••"
-                autoComplete={mode === 'reset' ? 'new-password' : 'current-password'}
-                required
-                autoFocus={mode === 'reset'}
-              />
+              {/*
+                A reveal, because the alternative is retyping.
+                Somebody who mistypes a long password has no way to see what
+                they typed, and the field clears itself on a failed attempt —
+                so the third try is as blind as the first.
+              */}
+              <div className="login-password">
+                <input
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="input"
+                  placeholder={
+                    mode === 'reset' ? 'At least 12 characters' : 'Your password'
+                  }
+                  autoComplete={mode === 'reset' ? 'new-password' : 'current-password'}
+                  required
+                  autoFocus={mode === 'reset'}
+                />
+                <button
+                  type="button"
+                  className="login-reveal"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    {showPassword ? (
+                      <>
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="m3 3 18 18" />
+                      </>
+                    ) : (
+                      <>
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </>
+                    )}
+                  </svg>
+                </button>
+              </div>
             </Field>
           ) : null}
 
@@ -199,8 +237,6 @@ export const LoginPage = () => {
             </details>
           ) : null}
         </form>
-
-        <p className="login-foot muted">Threadline · admin</p>
       </div>
     </div>
   );

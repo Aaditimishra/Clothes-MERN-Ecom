@@ -66,6 +66,16 @@
   --shadow: 0 2px 4px rgb(16 20 24 / 5%), 0 6px 16px rgb(16 20 24 / 8%);
   --shadow-lg: 0 4px 8px rgb(16 20 24 / 6%), 0 16px 40px rgb(16 20 24 / 14%);
 
+  /*
+   * The ground a raised card sits on.
+   *
+   * Not `--paper` and not `--paper-2`: in light those are white and the card is
+   * white too, and in dark `--paper-2` is the same value as `--paper-raised`.
+   * Either way the card lost its edge and read as a form floating on nothing,
+   * so this is one step away from the card in whichever direction is darker.
+   */
+  --ground: #eef1f5;
+
   --sidebar: 224px;
   --sidebar-rail: 64px;
   --topbar-h: 60px;
@@ -98,6 +108,7 @@
     --paper: #10141a;
     --paper-raised: #171c24;
     --paper-2: #171c24;
+    --ground: #0a0d12;
     --paper-3: #1f2630;
     --paper-hover: #212936;
     --line: #2a323d;
@@ -132,6 +143,7 @@
   --paper: #10141a;
   --paper-raised: #171c24;
   --paper-2: #171c24;
+  --ground: #0a0d12;
   --paper-3: #1f2630;
   --paper-hover: #212936;
   --line: #2a323d;
@@ -1267,88 +1279,221 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 
 /* ------------------------------ login page ----------------------------- */
 
+/* ------------------------------ sign in -------------------------------- */
+
 /*
  * Two panels at desk width, one on a phone.
  *
- * `1fr` on the form side rather than a fixed column, so the brand panel takes
- * the slack on a wide screen and the form never stretches to 900px — a
- * sign-in field the width of a monitor is harder to aim at, not easier.
+ * The form side is the narrower one and holds a real card. The first version
+ * let the form float directly on the background in a half-screen column: no
+ * container, no edge, and a field row lost in the middle of 700px of nothing.
  */
-.login { min-height: 100dvh; display: grid; grid-template-columns: 1.1fr 1fr; background: var(--paper); }
+.login {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  background: var(--ground);
+}
 
 .login-brand {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 18px;
-  padding: 48px 56px;
-  /* Mixed from the accent rather than set: the panel then follows whatever
-     colour the shop is wearing, without a second value to keep in step. */
+  gap: 22px;
+  padding: 56px clamp(40px, 6vw, 88px);
+  color: #fff;
+  /* Deep and accent-tinted, so the panel follows whatever colour the shop
+     wears without a second value to keep in step. */
   background:
-    radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 60%),
-    color-mix(in srgb, var(--brand) 8%, var(--paper-2));
-  border-right: 1px solid var(--line);
+    radial-gradient(90% 70% at 12% 8%, color-mix(in srgb, var(--brand) 62%, transparent), transparent 62%),
+    radial-gradient(70% 60% at 88% 96%, color-mix(in srgb, var(--brand) 34%, transparent), transparent 60%),
+    linear-gradient(155deg, #171c26, #0b0e14 70%);
 }
+
+/*
+ * A faint grid over the gradient.
+ *
+ * Two repeating-linear-gradients rather than an image: it costs no request,
+ * scales to any panel size, and stays crisp on a retina screen where a tiled
+ * PNG would not.
+ */
+.login-brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 4%) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 4%) 0 1px, transparent 1px 44px);
+  /* Fades out toward the bottom right so it reads as texture, not as a table. */
+  mask-image: radial-gradient(120% 100% at 0% 0%, #000 30%, transparent 78%);
+  pointer-events: none;
+}
+
+.login-brand > * { position: relative; }
 
 .login-brand-mark {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: var(--radius-lg);
-  background: var(--brand);
-  color: var(--brand-ink);
-  font-size: 22px;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  backdrop-filter: blur(6px);
+  font-size: 24px;
   font-weight: 700;
+  color: #fff;
 }
 
-.login-brand h2 { font-size: 30px; letter-spacing: -0.03em; }
-.login-brand p { max-width: 42ch; font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+.login-brand h2 {
+  font-size: clamp(34px, 4vw, 46px);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 650;
+}
 
-.login-brand-points { display: grid; gap: 10px; max-width: 42ch; }
+.login-brand p {
+  max-width: 40ch;
+  font-size: 15px;
+  line-height: 1.7;
+  color: rgb(255 255 255 / 72%);
+}
+
+/* `list-style: none` — the first version drew a tick AND left the browser's
+   own bullet in place, so every line began with two markers. */
+.login-brand-points { display: grid; gap: 14px; max-width: 40ch; list-style: none; margin: 4px 0 0; padding: 0; }
 
 .login-brand-points li {
-  position: relative;
-  padding-left: 24px;
-  font-size: 13px;
-  color: var(--ink-2);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgb(255 255 255 / 88%);
 }
 
-/* A drawn tick rather than a list marker, which cannot be coloured or aligned
-   to the first line of a wrapping item. */
 .login-brand-points li::before {
   content: '';
-  position: absolute;
-  left: 0;
-  top: 4px;
-  width: 13px;
-  height: 7px;
-  border-left: 2px solid var(--brand);
-  border-bottom: 2px solid var(--brand);
-  transform: rotate(-45deg);
+  flex: none;
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 14%);
+  border: 1px solid rgb(255 255 255 / 24%);
+  /* The tick is drawn inside the disc with a mask, so it inherits the ring's
+     size and cannot drift out of alignment as the type scales. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 13 4 4 10-10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 11px;
+}
+
+/*
+ * A three-row grid: spacer, card, footer.
+ *
+ * Centring the card in the column left it adrift in 900px of dark with the
+ * footer floating under it. Giving the footer the bottom row and the card the
+ * middle one puts the weight where the eye expects it.
+ */
+.login-brand-foot {
+  margin-top: 10px;
+  padding-top: 20px;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  font-size: 12.5px;
+  color: rgb(255 255 255 / 55%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.login-brand-foot code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 10%);
+  color: rgb(255 255 255 / 82%);
 }
 
 .login-panel {
   display: grid;
-  align-content: center;
+  grid-template-rows: 1fr auto 1fr;
   justify-items: center;
-  gap: 18px;
-  padding: 40px 24px;
+  padding: 32px 24px;
 }
 
-.login-card { width: min(360px, 100%); display: grid; gap: 16px; }
-.login-head { display: grid; gap: 5px; justify-items: start; }
+.login-panel > form { grid-row: 2; }
+.login-panel > .login-foot { grid-row: 3; align-self: end; }
 
-/* Only on the narrow layout, where the brand panel is gone and the form would
-   otherwise open with no indication of what it belongs to. */
+/*
+ * A real card, not a floating form.
+ *
+ * The border and shadow are what give the fields somewhere to be — without
+ * them the inputs sat in the middle of an empty half-screen with nothing to
+ * anchor them, which is what "basic" looked like.
+ */
+.login-card {
+  width: min(392px, 100%);
+  display: grid;
+  gap: 15px;
+  padding: 36px 34px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-lg);
+  /* Rises in once. The panel behind is static, so the card is the only thing
+     that needs to say the page has arrived. */
+  animation: login-rise 380ms var(--ease) both;
+}
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card { animation: none; }
+}
+
+.login-head { display: grid; gap: 6px; justify-items: start; margin-bottom: 2px; }
+.login-card h1 { font-size: 23px; letter-spacing: -0.025em; }
+.login-card .muted { font-size: 13px; line-height: 1.5; }
+.login-card .link-btn { justify-self: center; font-size: 12.5px; }
+
+/* Only on the narrow layout, where the brand panel is gone. */
 .login-mark { display: none; }
 
-.login-card h1 { font-size: 22px; letter-spacing: -0.02em; }
-.login-card .muted { font-size: 13px; }
-.login-card .link-btn { justify-self: center; font-size: 12.5px; }
 .btn-block { width: 100%; }
 
-.login-demo { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 12px; }
+/* A password field needs room for the reveal button; without the padding the
+   dots run underneath it. */
+.login-password { position: relative; }
+.login-password .input { padding-right: 44px; }
+
+.login-reveal {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.login-reveal:hover { background: var(--paper-3); color: var(--ink); }
+.login-reveal svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.login-demo { margin-top: 2px; border-top: 1px solid var(--line); padding-top: 13px; }
 
 .login-demo > summary {
   list-style: none;
@@ -1366,32 +1511,35 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 .login-demo[open] > summary::before { transform: rotate(90deg); }
 .login-demo > summary:hover { color: var(--ink); }
 
-.login-demo-table { margin-top: 8px; }
-.login-demo-table td { padding: 3px 0; font-size: 11.5px; border: 0; }
+.login-demo-table { margin-top: 10px; }
+.login-demo-table td { padding: 4px 0; font-size: 11.5px; border: 0; }
 .login-demo-table td:last-child { padding-left: 12px; text-align: right; }
-.login-demo-table tr { border: 0; }
+/* Opted out of the global table treatment: this is a two-column key list, not
+   a data table, and striping it makes a note look like a report. */
+.login-demo-table tr,
+.login-demo-table tr:nth-child(even) { border: 0; background: none; }
 .login-demo-table tr:hover { background: none; box-shadow: none; }
 .login-demo code { font-family: var(--mono); font-size: 11px; }
-.login-demo p { margin-top: 8px; font-size: 11.5px; }
+.login-demo p { margin-top: 10px; font-size: 11.5px; }
 
-.login-foot { font-size: 11.5px; }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .login { grid-template-columns: 1fr; }
   /* The brand half is decoration, so it is the half that goes. */
   .login-brand { display: none; }
-  .login-panel { padding: 32px 20px; }
+  .login-panel { padding: 28px 18px; }
+  .login-card { padding: 28px 22px; border-radius: 16px; }
   .login-head { justify-items: center; text-align: center; }
   .login-mark {
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
-    margin-bottom: 6px;
-    border-radius: var(--radius-lg);
+    width: 44px;
+    height: 44px;
+    margin-bottom: 8px;
+    border-radius: 13px;
     background: var(--brand);
     color: var(--brand-ink);
-    font-size: 19px;
+    font-size: 20px;
     font-weight: 700;
   }
 }
