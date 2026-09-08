@@ -721,7 +721,14 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 
-th, td { padding: 11px 14px; text-align: left; vertical-align: middle; }
+/*
+ * Styled on the element, not on a class.
+ *
+ * Half the screens had been converted to the shared table and half had not, so
+ * the panel had two table designs in it — which reads as an unfinished
+ * redesign rather than as a design. Everything that is a table gets this.
+ */
+th, td { padding: 12px 16px; text-align: left; vertical-align: middle; }
 
 thead th {
   font-size: 10.5px;
@@ -730,31 +737,45 @@ thead th {
   text-transform: uppercase;
   color: var(--ink-3);
   background: var(--paper-2);
-  border-bottom: 1px solid var(--line);
+  /* A stronger rule under the header than between rows: the head is a different
+     kind of thing from the body, and one hairline everywhere flattens that. */
+  border-bottom: 2px solid var(--line);
   white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
-tbody tr { border-bottom: 1px solid var(--line); }
+thead th:first-child { padding-left: 18px; }
+thead th:last-child { padding-right: 18px; }
+tbody td:first-child { padding-left: 18px; }
+tbody td:last-child { padding-right: 18px; }
+
+/*
+ * Zebra striping.
+ *
+ * Subtle by design — a full-strength stripe fights the badge colours sitting in
+ * the cells — but present, because holding the eye on one row across eight
+ * columns is exactly what a wide table needs and what nothing else provides.
+ */
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--paper-2) 70%, transparent); }
+tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: var(--paper-hover); }
+
+/*
+ * The hover marks the row with the accent as well as a fill.
+ *
+ * A fill alone is the same gesture as the zebra stripe, so on alternate rows
+ * hovering changed almost nothing. The inset bar is unambiguous on every row.
+ */
+tbody tr:hover {
+  background: var(--paper-hover);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
 th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 th.tight, td.tight { width: 1%; white-space: nowrap; }
 
-/*
- * Zebra striping, at a third the usual strength.
- *
- * A full-strength stripe fights the hover state and the badge colours in the
- * cells; this is just enough to hold the eye on one row across a wide table,
- * which is the whole reason for it.
- */
-.data-table tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--paper-2) 45%, transparent);
-}
-
-.data-table tbody tr:hover { background: var(--paper-hover); }
 .data-table tbody tr.is-clickable { cursor: pointer; }
 
 /* The row is clickable, so it needs a focus-visible affordance of its own for
@@ -1877,4 +1898,46 @@ td.tight .row { flex-wrap: nowrap; justify-content: flex-end; }
 @media (max-width: 900px) {
   .review-cell { max-width: 100%; }
   .review-product { max-width: 140px; }
+}
+
+/* -------------------------------- swatches ------------------------------- */
+
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+.swatch:hover { transform: scale(1.12); }
+
+/*
+ * The ring sits OUTSIDE the dot rather than inside it.
+ *
+ * An inner border eats into a 22px circle until the colour it is meant to be
+ * showing is a sliver — and on the dark swatches the border and the fill are
+ * near enough that the selection reads as nothing at all.
+ */
+.swatch.is-on {
+  box-shadow: 0 0 0 2px var(--paper-raised), 0 0 0 4px var(--ink-3);
+}
+
+/* "Store brand" has no colour of its own, so it shows the one currently in use. */
+.swatch.is-store {
+  background: var(--brand);
+  position: relative;
+}
+
+.swatch.is-store::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--brand-ink);
+  opacity: 0.85;
 }

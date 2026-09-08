@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { useSession } from '../lib/session';
-import { useTheme, type ThemeChoice } from '../lib/theme';
+import { ACCENT_PRESETS, useAccent, useTheme, type ThemeChoice } from '../lib/theme';
 
 /**
  * The menu.
@@ -172,6 +172,7 @@ export const Sidebar = ({
   const { session, signOut, can } = useSession();
   const { pathname } = useLocation();
   const [theme, setTheme] = useTheme();
+  const [accent, setAccent] = useAccent();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -382,6 +383,32 @@ export const Sidebar = ({
                   >
                     {option.label}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="profile-section">
+              <span className="profile-section-title">Accent colour</span>
+              {/*
+                This operator's own, not the shop's. Two people sharing a shop
+                should be able to tell their windows apart, and neither should be
+                able to recolour the panel for the other. "Store brand" hands it
+                back to whatever Settings says.
+              */}
+              <div className="swatches" role="group" aria-label="Accent colour">
+                {ACCENT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`swatch${accent === preset.id ? ' is-on' : ''}${
+                      preset.colour ? '' : ' is-store'
+                    }`}
+                    style={preset.colour ? { background: preset.colour } : undefined}
+                    aria-label={preset.label}
+                    aria-pressed={accent === preset.id}
+                    title={preset.label}
+                    onClick={() => setAccent(preset.id)}
+                  />
                 ))}
               </div>
             </div>

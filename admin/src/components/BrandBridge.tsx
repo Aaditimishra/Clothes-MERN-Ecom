@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { api } from '../lib/api';
+import { accentColour, readAccent } from '../lib/theme';
 import type { StoreSettings } from '../lib/types';
+
+/** A merchant-editable field is written into a style property, so it is checked. */
+const isHex = (value: string): boolean => /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(value.trim());
 
 /**
  * Paints the panel in the shop's own accent — and ONLY the accent.
@@ -28,13 +32,28 @@ export const BrandBridge = () => {
     retry: false,
   });
 
+  /**
+   * Re-read on the event the picker fires.
+   *
+   * The choice lives in `localStorage`, which is not reactive — without this the
+   * swatch would store the new accent and the panel would keep the old one until
+   * something else happened to re-render.
+   */
+  const [chosen, setChosen] = useState(readAccent);
   useEffect(() => {
-    const accent = data?.branding?.accent;
-    if (!accent) return;
+    const onChange = () => setChosen(readAccent());
+    window.addEventListener('threadline:accent', onChange);
+    return () => window.removeEventListener('threadline:accent', onChange);
+  }, []);
+
+  useEffect(() => {
+    // The operator's own choice wins; `store` falls through to the shop's.
+    const accent = accentColour(chosen) ?? data?.branding?.accent;
+    if (!accent || !isHex(accent)) return;
 
     const root = document.documentElement;
     root.style.setProperty('--brand', accent);
-    root.style.setProperty('--brand-ink', data.branding.accentInk || '#ffffff');
+    root.style.setProperty('--brand-ink', '#ffffff');
 
     /**
      * The soft tint and the hover are DERIVED, not asked for.
@@ -55,7 +74,7 @@ export const BrandBridge = () => {
         root.style.removeProperty(token);
       }
     };
-  }, [data]);
+  }, [data, chosen]);
 
   return null;
 };

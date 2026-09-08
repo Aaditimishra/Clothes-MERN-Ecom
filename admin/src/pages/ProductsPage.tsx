@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Badge, Empty, Loading, Pager } from '../components/ui';
+import { DataTable, type Column } from '../components/DataTable';
 import { api, downloadCsv, query } from '../lib/api';
 import { formatDate, formatMoney, titleCase } from '../lib/format';
 import { usePaging } from '../lib/paging';
@@ -14,6 +15,65 @@ const STATUSES = ['', 'active', 'draft', 'archived'] as const;
 /** Below this, a size is close enough to selling out to warrant a warning. */
 const LOW_STOCK = 20;
 
+const PRODUCT_COLUMNS: Column<AdminProductSummary>[] = [
+  {
+    key: 'product',
+    header: 'Product',
+    required: true,
+    render: (product) => (
+      <Link to={`/products/${product.id}`} className="cell-product">
+        <img className="row-thumb" src={product.imageUrl ?? ''} alt="" loading="lazy" />
+        <span>
+          <strong>{product.name}</strong>
+          <span>{product.brand}</span>
+        </span>
+      </Link>
+    ),
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (product) => <Badge value={product.status} />,
+  },
+  {
+    key: 'department',
+    header: 'Department',
+    render: (product) => titleCase(product.department),
+  },
+  {
+    key: 'price',
+    header: 'From',
+    numeric: true,
+    render: (product) => formatMoney(product.price),
+  },
+  {
+    key: 'colours',
+    header: 'Colours',
+    numeric: true,
+    optional: true,
+    render: (product) => product.colourCount,
+  },
+  {
+    key: 'stock',
+    header: 'Stock',
+    numeric: true,
+    render: (product) => (
+      /* Flagged rather than merely printed: somebody scanning this column is
+         looking for what needs restocking, not reading numbers. */
+      <span className={product.totalStock <= LOW_STOCK ? 'text-warn' : undefined}>
+        {product.totalStock}
+      </span>
+    ),
+  },
+  {
+    key: 'updated',
+    header: 'Updated',
+    render: (product) => (
+      <span className="muted nowrap">{formatDate(product.updatedAt)}</span>
+    ),
+  },
+];
+
 export const ProductsPage = () => {
   const { can } = useSession();
   const { page, pageSize, setPage, setPageSize, reset } = usePaging(25);
@@ -23,7 +83,9 @@ export const ProductsPage = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['products', page, pageSize, search, status],
     queryFn: () =>
-      api<Paged<AdminProductSummary>>(`/products${query({ page, pageSize, search, status })}`),
+      api<Paged<AdminProductSummary>>(
+        `/products${query({ page, pageSize, search, status })}`,
+      ),
   });
 
   return (
@@ -57,13 +119,13 @@ export const ProductsPage = () => {
             ))}
           </select>
           {can('data.export') ? (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void downloadCsv('/export/products', 'threadline-products')}
-          >
-            Export CSV
-          </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void downloadCsv('/export/products', 'threadline-products')}
+            >
+              Export CSV
+            </button>
           ) : null}
           {can('catalog.manage') ? (
             <Link to="/products/new" className="btn btn-primary">
@@ -79,61 +141,12 @@ export const ProductsPage = () => {
             <Loading />
           ) : data && data.items.length > 0 ? (
             <>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th>Status</th>
-                      <th>Department</th>
-                      <th className="num">From</th>
-                      <th className="num">Colours</th>
-                      <th className="num">Stock</th>
-                      <th>Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.items.map((product) => (
-                      <tr key={product.id}>
-                        <td>
-                          <Link to={`/products/${product.id}`} className="cell-product">
-                            <img
-                              className="row-thumb"
-                              src={product.imageUrl ?? ''}
-                              alt=""
-                              loading="lazy"
-                            />
-                            <span>
-                              <strong>{product.name}</strong>
-                              <span>{product.brand}</span>
-                            </span>
-                          </Link>
-                        </td>
-                        <td>
-                          <Badge value={product.status} />
-                        </td>
-                        <td>{titleCase(product.department)}</td>
-                        <td className="num">{formatMoney(product.price)}</td>
-                        <td className="num">{product.colourCount}</td>
-                        <td className="num">
-                          {/* Flagged rather than merely printed: a merchant scanning
-                              this column is looking for what needs restocking. */}
-                          <span
-                            style={
-                              product.totalStock <= LOW_STOCK
-                                ? { color: 'var(--warn)', fontWeight: 600 }
-                                : undefined
-                            }
-                          >
-                            {product.totalStock}
-                          </span>
-                        </td>
-                        <td className="muted">{formatDate(product.updatedAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                rows={data.items}
+                rowKey={(product) => product.id}
+                storageKey="threadline.admin.columns.products"
+                columns={PRODUCT_COLUMNS}
+              />
               <Pager
                 page={data.page}
                 pageCount={data.pageCount}

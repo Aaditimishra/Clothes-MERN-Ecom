@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { ConfirmDialog, Dialog, Empty, Loading, Pager } from '../components/ui';
+import { DataTable, type Column } from '../components/DataTable';
 import { api, query } from '../lib/api';
 import { usePaging } from '../lib/paging';
 import { formatDate } from '../lib/format';
@@ -30,6 +31,83 @@ const Stars = ({ rating }: { rating: number }) => (
     ))}
   </span>
 );
+
+const REVIEW_COLUMNS = (
+  onRead: (review: AdminReview) => void,
+  onRemove: (review: AdminReview) => void,
+): Column<AdminReview>[] => [
+  {
+    key: 'review',
+    header: 'Review',
+    required: true,
+    render: (review) => (
+      <div className="review-cell">
+        <div className="review-top">
+          <Stars rating={review.rating} />
+          <span className="review-author">{review.authorName}</span>
+          {review.isVerifiedPurchase ? (
+            <span className="badge badge-active">verified</span>
+          ) : null}
+        </div>
+        {review.title ? <strong className="review-title">{review.title}</strong> : null}
+        {/* Clamped by CSS, not sliced in JS: three lines of whatever width the
+            column ends up, and no ellipsis welded into the middle of a word. */}
+        <p className="review-body">{review.body}</p>
+      </div>
+    ),
+  },
+  {
+    key: 'product',
+    header: 'Product',
+    render: (review) => <span className="review-product">{review.productName}</span>,
+  },
+  {
+    key: 'fit',
+    header: 'Fit',
+    render: (review) =>
+      review.fitFeedback ? (
+        <span className={`fit fit-${review.fitFeedback}`}>
+          {FIT_LABELS[review.fitFeedback]}
+        </span>
+      ) : (
+        <span className="muted">—</span>
+      ),
+  },
+  {
+    key: 'rating',
+    header: 'Rating',
+    numeric: true,
+    optional: true,
+    render: (review) => review.rating,
+  },
+  {
+    key: 'date',
+    header: 'Date',
+    render: (review) => (
+      <span className="muted nowrap">{formatDate(review.createdAt)}</span>
+    ),
+  },
+  {
+    key: 'actions',
+    header: '',
+    tight: true,
+    required: true,
+    render: (review) => (
+      <div className="row">
+        <button type="button" className="btn btn-sm" onClick={() => onRead(review)}>
+          Read
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-danger"
+          onClick={() => onRemove(review)}
+        >
+          Remove
+        </button>
+      </div>
+    ),
+  },
+];
 
 export const ReviewsPage = () => {
   const { notify } = useToast();
@@ -74,78 +152,13 @@ export const ReviewsPage = () => {
             <Loading />
           ) : data && data.items.length > 0 ? (
             <>
-              <div className="table-wrap">
-                <table className="table-reviews">
-                  <thead>
-                    <tr>
-                      <th>Review</th>
-                      <th>Product</th>
-                      <th>Fit</th>
-                      <th>Date</th>
-                      <th className="tight" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.items.map((review) => (
-                      <tr key={review.id}>
-                        {/*
-                          Rating, author and the quote in ONE cell.
-                          Spread across three columns they were three unrelated
-                          fragments the eye had to reassemble on every row; a
-                          review is one thought and reads as one block.
-                        */}
-                        <td className="review-cell">
-                          <div className="review-top">
-                            <Stars rating={review.rating} />
-                            <span className="review-author">{review.authorName}</span>
-                            {review.isVerifiedPurchase ? (
-                              <span className="badge badge-active">verified</span>
-                            ) : null}
-                          </div>
-                          {review.title ? (
-                            <strong className="review-title">{review.title}</strong>
-                          ) : null}
-                          {/*
-                            Clamped by CSS rather than sliced in JS. Three lines
-                            of any width, no "…" welded into the middle of a
-                            word, and the full text is one click away.
-                          */}
-                          <p className="review-body">{review.body}</p>
-                        </td>
-                        <td className="review-product">{review.productName}</td>
-                        <td>
-                          {review.fitFeedback ? (
-                            <span className={`fit fit-${review.fitFeedback}`}>
-                              {FIT_LABELS[review.fitFeedback]}
-                            </span>
-                          ) : (
-                            <span className="muted">—</span>
-                          )}
-                        </td>
-                        <td className="muted nowrap">{formatDate(review.createdAt)}</td>
-                        <td className="tight">
-                          <div className="row">
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              onClick={() => setOpen(review)}
-                            >
-                              Read
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => setDeleting(review)}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                rows={data.items}
+                rowKey={(review) => review.id}
+                storageKey="threadline.admin.columns.reviews"
+                onRowClick={setOpen}
+                columns={REVIEW_COLUMNS(setOpen, setDeleting)}
+              />
               <Pager
                 page={data.page}
                 pageCount={data.pageCount}

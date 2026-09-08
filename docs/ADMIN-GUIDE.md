@@ -235,15 +235,28 @@ anyone else — and it is remembered.
 
 ---
 
-## The panel wears your colour
+## Colour, in two places
 
-Set the **accent** in Store settings → Brand palette and the admin picks it up
-too: the active menu item, buttons, focus rings and the first chart series.
+**The shop's colour** is Store settings → Brand palette. The accent there paints
+the storefront and the admin both: the active menu item, buttons, focus rings
+and the first chart series.
 
-Only the accent. Surfaces and text stay on a neutral grey either way, on
-purpose — this is a screen somebody reads for hours, and a bright brand colour
-behind an order list would make it hard to work in. The shop itself takes the
-whole palette; the tool takes the one colour.
+**Your own colour** is under your name at the bottom of the sidebar — a row of
+swatches, plus "Store brand" which hands it back to the setting above.
+
+That one is yours alone. Two people sharing a shop should be able to tell their
+own windows apart, and neither should be able to recolour the panel for the
+other, so it lives in your browser and changes nothing for anybody else.
+
+They are presets rather than a colour wheel because each has been checked to
+stay readable on both the light and the dark surface. The shop's brand colour
+can be anything — it only ever tints a background — but the colour that paints
+button labels cannot.
+
+Only the accent moves, either way. Surfaces and text stay neutral grey on
+purpose: this is a screen somebody reads for hours, and a bright colour behind
+an order list makes it hard to work in. The shop takes the whole palette; the
+tool takes one colour.
 
 ---
 

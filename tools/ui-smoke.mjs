@@ -421,6 +421,49 @@ const run = async () => {
     );
   }
 
+  section('Every section has the same table');
+
+  /*
+   * The panel had two table designs in it for a while — styling that lived on a
+   * class only half the screens used — and it read as an unfinished redesign.
+   * These check the treatment is on every one of them.
+   */
+  const TABLE_SCREENS = ['/products', '/orders', '/payments', '/customers', '/reviews', '/coupons', '/staff', '/taxonomy'];
+  for (const path of TABLE_SCREENS) {
+    await visit(path);
+    const look = await page.evaluate(() => {
+      const head = document.querySelector('thead th');
+      if (!head) return null;
+      const h = getComputedStyle(head);
+      // The stripe needs a second row to be visible on, and some screens are
+      // legitimately short — the payments queue is one row when the shop is up
+      // to date. Checking it only where it can exist keeps this about the
+      // styling rather than about how much data happens to be there.
+      const evenRow = document.querySelectorAll('tbody tr')[1];
+      return {
+        sticky: h.position === 'sticky',
+        headRule: h.borderBottomWidth,
+        pad: h.paddingLeft,
+        striped: evenRow ? getComputedStyle(evenRow).backgroundColor !== 'rgba(0, 0, 0, 0)' : null,
+      };
+    });
+
+    const styled =
+      Boolean(look) &&
+      look.sticky &&
+      look.headRule === '2px' &&
+      look.pad === '18px' &&
+      look.striped !== false;
+
+    check(
+      `${path.padEnd(12)} table is styled`,
+      styled,
+      look
+        ? `sticky ${look.sticky}, rule ${look.headRule}, pad ${look.pad}, striped ${look.striped}`
+        : 'no table on the page',
+    );
+  }
+
   section("The panel wears the shop's colour");
 
   await visit('/settings');
@@ -443,6 +486,47 @@ const run = async () => {
   // rgb(143, 61, 47) is #8f3d2f. If the token were set but nothing read it, this
   // would still be the old blue.
   check('and something actually paints with it', painted === 'rgb(143, 61, 47)', String(painted));
+
+  section('An operator can pick their own accent');
+
+  await visit('/orders');
+  const picked = await page.evaluate(async () => {
+    document.querySelector('.profile-trigger')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const swatches = [...document.querySelectorAll('.swatch')];
+    if (swatches.length < 2) return { count: swatches.length };
+    // The second preset — the first is "Store brand", which is the default.
+    swatches[1].click();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return {
+      count: swatches.length,
+      brand: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim(),
+    };
+  });
+
+  check('the profile menu offers accents', picked.count >= 6, `${picked.count} swatches`);
+  check('choosing one repaints the panel', picked.brand === '#4f46e5', picked.brand);
+
+  // A preference, so it has to outlive the page.
+  await visit('/orders');
+  const kept = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--brand').trim(),
+  );
+  check('the accent survives a reload', kept === '#4f46e5', kept);
+
+  // And "Store brand" has to hand it back, or the choice is a one-way door.
+  await page.evaluate(async () => {
+    document.querySelector('.profile-trigger')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    document.querySelector('.swatch')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  });
+  const restored = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--brand').trim(),
+  );
+  check('"Store brand" restores the shop colour', restored.toLowerCase() === '#8f3d2f', restored);
+
+  await page.evaluate(() => localStorage.removeItem('threadline.admin.accent'));
 
   section('The sidebar folds, and remembers');
 
