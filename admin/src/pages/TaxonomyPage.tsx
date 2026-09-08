@@ -117,7 +117,17 @@ export const TaxonomyPage = () => {
   return (
     <>
       <header className="topbar">
-        <h1>Attributes</h1>
+        <div>
+          <h1>Attributes &amp; brands</h1>
+          {/*
+            Named, because "Attributes" alone did not tell anyone that brands
+            live here — the first question asked about this screen was where to
+            add one, and the answer was a tab three along.
+          */}
+          <p className="topbar-sub">
+            Brands, colours, sizes and every other word the shop uses
+          </p>
+        </div>
         <div className="topbar-actions">
           {canManage ? (
             <button

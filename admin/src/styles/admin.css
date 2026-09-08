@@ -721,12 +721,12 @@ h1, h2, h3 { font-weight: 600; line-height: 1.2; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 
-th, td { padding: 10px 14px; text-align: left; vertical-align: middle; }
+th, td { padding: 11px 14px; text-align: left; vertical-align: middle; }
 
 thead th {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-3);
   background: var(--paper-2);
@@ -739,9 +739,105 @@ thead th {
 
 tbody tr { border-bottom: 1px solid var(--line); }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: var(--paper-2); }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
-td.tight { width: 1%; white-space: nowrap; }
+tbody tr:hover { background: var(--paper-hover); }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+th.tight, td.tight { width: 1%; white-space: nowrap; }
+
+/*
+ * Zebra striping, at a third the usual strength.
+ *
+ * A full-strength stripe fights the hover state and the badge colours in the
+ * cells; this is just enough to hold the eye on one row across a wide table,
+ * which is the whole reason for it.
+ */
+.data-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--paper-2) 45%, transparent);
+}
+
+.data-table tbody tr:hover { background: var(--paper-hover); }
+.data-table tbody tr.is-clickable { cursor: pointer; }
+
+/* The row is clickable, so it needs a focus-visible affordance of its own for
+   anyone driving the table from the keyboard. */
+.data-table tbody tr.is-clickable:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ---------------------------- column picker ------------------------------ */
+
+.columns { position: relative; }
+
+.columns-count {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.columns-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 190px;
+  padding: 8px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.columns-title {
+  padding: 2px 8px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.columns-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.columns-item:hover { background: var(--paper-hover); }
+.columns-item input { width: 14px; height: 14px; accent-color: var(--brand); cursor: pointer; }
+
+.columns-reset {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.columns-reset:hover { color: var(--brand); }
 
 .row-thumb {
   width: 40px; height: 52px; object-fit: cover;

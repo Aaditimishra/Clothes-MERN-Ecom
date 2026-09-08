@@ -7,6 +7,7 @@ import {
   type OrderView,
 } from '@shop/shared';
 
+import { DataTable, type Column } from '../components/DataTable';
 import { Badge, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
 import { api, downloadCsv, query } from '../lib/api';
 import { formatDate, formatMoney } from '../lib/format';
@@ -34,6 +35,90 @@ const stockHint = (order: OrderView): string | undefined => {
   return undefined;
 };
 
+/**
+ * What an order row can show.
+ *
+ * Described here rather than written into the markup, so a merchant can decide
+ * which of these they want: whoever is packing wants the city and the item
+ * count, whoever is reconciling wants the payment reference, and neither should
+ * have to scroll past the other's columns.
+ */
+const ORDER_COLUMNS = (
+  canManage: boolean,
+  onOpen: (order: OrderView) => void,
+): Column<OrderView>[] => [
+  {
+    key: 'reference',
+    header: 'Reference',
+    required: true,
+    render: (order) => <span className="mono">{order.reference}</span>,
+  },
+  {
+    key: 'placed',
+    header: 'Placed',
+    render: (order) => <span className="nowrap">{formatDate(order.placedAt)}</span>,
+  },
+  {
+    key: 'customer',
+    header: 'Customer',
+    render: (order) => (
+      <>
+        <span className="cell-name">{order.shippingAddress.fullName}</span>
+        <span className="cell-sub">{order.shippingAddress.city}</span>
+      </>
+    ),
+  },
+  { key: 'items', header: 'Items', numeric: true, render: (order) => order.itemCount },
+  { key: 'status', header: 'Status', render: (order) => <Badge value={order.status} /> },
+  {
+    key: 'payment',
+    header: 'Payment',
+    render: (order) => <Badge value={order.paymentStatus} />,
+  },
+  {
+    key: 'method',
+    header: 'Method',
+    optional: true,
+    render: (order) => <span className="muted">{order.paymentMethod}</span>,
+  },
+  {
+    key: 'utr',
+    header: 'Payment ref',
+    optional: true,
+    render: (order) => <span className="mono">{order.payment.reference ?? '—'}</span>,
+  },
+  {
+    key: 'tracking',
+    header: 'Tracking',
+    optional: true,
+    render: (order) => <span className="mono">{order.trackingNumber ?? '—'}</span>,
+  },
+  {
+    key: 'total',
+    header: 'Total',
+    numeric: true,
+    render: (order) => formatMoney(order.totals.grandTotal),
+  },
+  {
+    key: 'open',
+    header: '',
+    tight: true,
+    required: true,
+    /*
+      A real button, not a span dressed as one.
+      Clicking the row is a convenience for a mouse; this is the control that
+      takes focus, answers to the keyboard and is announced as a button.
+      `onOpen` is passed down rather than closed over so the column set stays a
+      pure description of the row.
+    */
+    render: (order) => (
+      <button type="button" className="btn btn-sm" onClick={() => onOpen(order)}>
+        {canManage ? 'Manage' : 'View'}
+      </button>
+    ),
+  },
+];
+
 export const OrdersPage = () => {
   const { can } = useSession();
   const { notify } = useToast();
@@ -49,7 +134,8 @@ export const OrdersPage = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['orders', page, pageSize, search, status],
-    queryFn: () => api<Paged<OrderView>>(`/orders${query({ page, pageSize, search, status })}`),
+    queryFn: () =>
+      api<Paged<OrderView>>(`/orders${query({ page, pageSize, search, status })}`),
   });
 
   const update = useMutation({
@@ -77,7 +163,8 @@ export const OrdersPage = () => {
       notify(error instanceof Error ? error.message : 'Could not update', 'error'),
   });
 
-  const isTrackingDirty = open !== null && tracking.trim() !== (open.trackingNumber ?? '');
+  const isTrackingDirty =
+    open !== null && tracking.trim() !== (open.trackingNumber ?? '');
 
   const saveTracking = () => {
     if (!open || !isTrackingDirty) return;
@@ -100,13 +187,13 @@ export const OrdersPage = () => {
             }}
           />
           {can('data.export') ? (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void downloadCsv('/export/orders', 'threadline-orders')}
-          >
-            Export CSV
-          </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void downloadCsv('/export/orders', 'threadline-orders')}
+            >
+              Export CSV
+            </button>
           ) : null}
           <select
             className="select"
@@ -133,49 +220,19 @@ export const OrdersPage = () => {
             <Loading />
           ) : data && data.items.length > 0 ? (
             <>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Reference</th>
-                      <th>Placed</th>
-                      <th>Items</th>
-                      <th>Status</th>
-                      <th>Payment</th>
-                      <th className="num">Total</th>
-                      <th className="tight" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.items.map((order) => (
-                      <tr key={order.id}>
-                        <td className="mono">{order.reference}</td>
-                        <td>{formatDate(order.placedAt)}</td>
-                        <td>{order.itemCount}</td>
-                        <td>
-                          <Badge value={order.status} />
-                        </td>
-                        <td>
-                          <Badge value={order.paymentStatus} />
-                        </td>
-                        <td className="num">{formatMoney(order.totals.grandTotal)}</td>
-                        <td className="tight">
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => {
-                              setOpen(order);
-                              setTracking(order.trackingNumber ?? '');
-                            }}
-                          >
-                            Open
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                rows={data.items}
+                rowKey={(order) => order.id}
+                storageKey="threadline.admin.columns.orders"
+                onRowClick={(order) => {
+                  setOpen(order);
+                  setTracking(order.trackingNumber ?? '');
+                }}
+                columns={ORDER_COLUMNS(canManage, (order) => {
+                  setOpen(order);
+                  setTracking(order.trackingNumber ?? '');
+                })}
+              />
               <Pager
                 page={data.page}
                 pageCount={data.pageCount}
@@ -226,7 +283,10 @@ export const OrdersPage = () => {
 
                   update.mutate({
                     id: open.id,
-                    patch: { status: next, ...(restock === undefined ? {} : { restock }) },
+                    patch: {
+                      status: next,
+                      ...(restock === undefined ? {} : { restock }),
+                    },
                   });
                 }}
               >
@@ -244,7 +304,10 @@ export const OrdersPage = () => {
                 value={open.paymentStatus}
                 disabled={!canManage || update.isPending}
                 onChange={(event) =>
-                  update.mutate({ id: open.id, patch: { paymentStatus: event.target.value } })
+                  update.mutate({
+                    id: open.id,
+                    patch: { paymentStatus: event.target.value },
+                  })
                 }
               >
                 {PAYMENT_STATUSES.map((value) => (
@@ -366,13 +429,20 @@ export const OrdersPage = () => {
                 ).map(([label, value, isDeduction]) => (
                   <div key={label} className="spread">
                     <span className="muted">{label}</span>
-                    <span className={isDeduction && value.amount > 0 ? 'is-deduction' : undefined}>
+                    <span
+                      className={
+                        isDeduction && value.amount > 0 ? 'is-deduction' : undefined
+                      }
+                    >
                       {isDeduction && value.amount > 0 ? '−' : ''}
                       {formatMoney(value)}
                     </span>
                   </div>
                 ))}
-                <div className="spread" style={{ fontWeight: 700, fontSize: 15, paddingTop: 6 }}>
+                <div
+                  className="spread"
+                  style={{ fontWeight: 700, fontSize: 15, paddingTop: 6 }}
+                >
                   <span>Total paid</span>
                   <span>{formatMoney(open.totals.grandTotal)}</span>
                 </div>

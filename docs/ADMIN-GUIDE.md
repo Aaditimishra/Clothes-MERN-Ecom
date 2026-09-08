@@ -199,6 +199,54 @@ Sizes are ordered by position, never alphabetically — a size selector reading
 
 ---
 
+## Brands, and the rest of the shop's vocabulary
+
+**Attributes & brands**, in the sidebar. Brands are the third tab.
+
+Everything the shop uses as a word lives here — brands, colours, sizes,
+departments, fabrics, fits, occasions, sleeve lengths, patterns, necklines. Each
+is the same screen, so adding a brand works exactly like adding a colour.
+
+A term has a **label** you can rename at any time and a **code** that products
+reference and that never changes. Rename "Mercer Denim" to "Mercer" and every
+product keeps working; the code stays `mercer-denim`.
+
+Colours also carry a **swatch**, which is the dot a shopper sees on the product
+page. Nothing else needs one.
+
+Terms **deactivate rather than delete**. A brand you have sold is named on past
+order lines, and a shop that loses the name of what it shipped cannot answer a
+customer's question about it.
+
+---
+
+## Choosing your own columns
+
+Orders, Payments and Customers let you decide which columns to see — the
+**Columns** button above the table.
+
+Some are off until you ask for them: the payment reference, the tracking number,
+the method. That is deliberate. Whoever is packing wants the city and the item
+count; whoever is reconciling wants the UTR and does not care about the city.
+Neither should have to scroll past the other's columns.
+
+Your choice is yours alone — stored in your browser, changing nothing for
+anyone else — and it is remembered.
+
+---
+
+## The panel wears your colour
+
+Set the **accent** in Store settings → Brand palette and the admin picks it up
+too: the active menu item, buttons, focus rings and the first chart series.
+
+Only the accent. Surfaces and text stay on a neutral grey either way, on
+purpose — this is a screen somebody reads for hours, and a bright brand colour
+behind an order list would make it hard to work in. The shop itself takes the
+whole palette; the tool takes the one colour.
+
+---
+
 ## Media
 
 - **Drop files anywhere on the Media page** or use the picker inside the product

@@ -38,7 +38,7 @@ const ROUTES = [
   ['/notifications', 'Notifications'],
   ['/products', 'Products'],
   ['/categories', 'Categories'],
-  ['/taxonomy', 'Attributes'],
+  ['/taxonomy', 'Attributes & brands'],
   ['/size-charts', 'Size charts'],
   ['/media', 'Media'],
   ['/content', null],
@@ -191,11 +191,37 @@ const run = async () => {
 
   section('Dialogs open, and open centred');
   await visit('/payments');
-  const opened = await page.evaluate(() => {
-    const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Open');
-    if (!button) return null;
-    button.click();
-    return true;
+
+  /*
+   * Do not depend on the queue having something in it.
+   *
+   * The default tab shows payments awaiting a human, and the API suite verifies
+   * one as part of its own run — so this check passed or failed depending on
+   * which suite went first, which is no kind of check at all. Any tab with rows
+   * will do: what is being measured is the dialog, not the queue.
+   */
+  const opened = await page.evaluate(async () => {
+    const openFirst = () => {
+      const button = [...document.querySelectorAll('button')].find(
+        (b) => b.textContent.trim() === 'Open',
+      );
+      if (!button) return false;
+      button.click();
+      return true;
+    };
+
+    if (openFirst()) return true;
+
+    for (const label of ['Paid', 'Cash on delivery', 'Expired', 'Awaiting payment']) {
+      const tab = [...document.querySelectorAll('.tab')].find((t) =>
+        t.textContent.trim().startsWith(label),
+      );
+      if (!tab) continue;
+      tab.click();
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      if (openFirst()) return true;
+    }
+    return false;
   });
 
   if (opened) {
@@ -310,6 +336,113 @@ const run = async () => {
     const nowFirst = await page.evaluate(() => document.querySelector('tbody tr')?.innerText ?? '');
     check('page 2 shows different rows', nowFirst !== second && nowFirst.length > 0);
   }
+
+  section('Brands are findable, and addable');
+
+  await visit('/taxonomy');
+  const brands = await page.evaluate(() => {
+    const tab = [...document.querySelectorAll('.tab')].find((t) =>
+      t.textContent.trim().startsWith('Brands'),
+    );
+    if (!tab) return null;
+    tab.click();
+    return true;
+  });
+  check('there is a Brands tab', Boolean(brands));
+
+  if (brands) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const listed = await page.evaluate(() => ({
+      rows: document.querySelectorAll('tbody tr').length,
+      addLabel: document.querySelector('.topbar .btn-primary')?.textContent?.trim() ?? '',
+    }));
+    check('the seeded brands are listed', listed.rows >= 5, `${listed.rows} rows`);
+    // The button has to name what it adds, or the tab and the button disagree.
+    check('the add button says "brand"', /brand/i.test(listed.addLabel), listed.addLabel);
+
+    await page.evaluate(() => document.querySelector('.topbar .btn-primary')?.click());
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const dialog = await page.evaluate(() => {
+      const d = document.querySelector('dialog[open]');
+      return d ? { fields: d.querySelectorAll('input, select').length } : null;
+    });
+    check('adding a brand opens a form', Boolean(dialog) && dialog.fields > 0,
+      dialog ? `${dialog.fields} fields` : 'no dialog');
+    await page.keyboard.press('Escape');
+  }
+
+  section('Tables are described by data, and the columns are the merchant\'s');
+
+  await visit('/orders');
+  const table = await page.evaluate(() => ({
+    headers: [...document.querySelectorAll('.data-table thead th')].map((th) =>
+      th.textContent.trim(),
+    ),
+    rows: document.querySelectorAll('.data-table tbody tr').length,
+    hasPicker: Boolean(document.querySelector('.columns button')),
+  }));
+  check('orders render through the data table', table.rows > 0, `${table.rows} rows`);
+  check('there is a column picker', table.hasPicker);
+  check('optional columns start hidden', !table.headers.includes('Payment ref'),
+    table.headers.join(', '));
+
+  if (table.hasPicker) {
+    // Open the menu, then WAIT: React has to commit before the items exist.
+    // Querying in the same evaluate found nothing and reported the picker empty.
+    await page.evaluate(() => document.querySelector('.columns button').click());
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const shown = await page.evaluate(() => {
+      const item = [...document.querySelectorAll('.columns-item')].find((l) =>
+        l.textContent.includes('Payment ref'),
+      );
+      if (!item) return false;
+      item.querySelector('input').click();
+      return true;
+    });
+    check('the picker lists the optional columns', shown);
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const withExtra = await page.evaluate(() =>
+      [...document.querySelectorAll('.data-table thead th')].map((th) => th.textContent.trim()),
+    );
+    check('turning one on adds the column', withExtra.includes('Payment ref'),
+      withExtra.join(', '));
+
+    // A column choice is a working preference, not a per-visit mood.
+    await visit('/orders');
+    const afterReload = await page.evaluate(() =>
+      [...document.querySelectorAll('.data-table thead th')].map((th) => th.textContent.trim()),
+    );
+    check('the choice survives a reload', afterReload.includes('Payment ref'));
+
+    await page.evaluate(() =>
+      localStorage.removeItem('threadline.admin.columns.orders'),
+    );
+  }
+
+  section("The panel wears the shop's colour");
+
+  await visit('/settings');
+  const accent = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    return {
+      brand: root.getPropertyValue('--brand').trim(),
+      chart: root.getPropertyValue('--chart-1').trim(),
+    };
+  });
+  // The seed's accent, not the stylesheet's shipped blue.
+  check('the brand token comes from store settings', accent.brand.toLowerCase() === '#8f3d2f',
+    accent.brand);
+  check('the first chart series follows it', accent.chart.toLowerCase() === '#8f3d2f', accent.chart);
+
+  const painted = await page.evaluate(() => {
+    const link = document.querySelector('.nav-link.active');
+    return link ? getComputedStyle(link).color : null;
+  });
+  // rgb(143, 61, 47) is #8f3d2f. If the token were set but nothing read it, this
+  // would still be the old blue.
+  check('and something actually paints with it', painted === 'rgb(143, 61, 47)', String(painted));
 
   section('The sidebar folds, and remembers');
 

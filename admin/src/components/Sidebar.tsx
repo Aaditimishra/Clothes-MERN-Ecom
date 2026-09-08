@@ -55,7 +55,7 @@ export const NAV: NavEntry[] = [
   },
   {
     to: '/taxonomy',
-    label: 'Attributes',
+    label: 'Attributes & brands',
     permission: 'catalog.view',
     group: 'Catalogue',
     icon: 'M4 6h16M4 12h10M4 18h7',

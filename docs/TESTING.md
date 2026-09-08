@@ -8,12 +8,18 @@ npm run dev:test                #              servers, credential limit raised
 npm run smoke                   # terminal 2 — run ONCE
 ```
 
-**384 API checks and 61 browser checks, 0 failures.**
+**384 API checks and 74 browser checks, 0 failures.**
 
 ```bash
 npm run smoke      # the API, against a live seeded server
 npm run smoke:ui   # the admin, in a real browser
 ```
+
+**Reseed between them.** Both drive the same database and the API suite changes
+it — it verifies a payment, which empties the queue the browser suite would
+otherwise look at. Checks that depend on what another suite left behind pass or
+fail by run order, which is no kind of check, so the browser suite falls back to
+any tab with rows in it rather than assuming the queue is full.
 
 ### Why `dev:test` and not `dev`
 

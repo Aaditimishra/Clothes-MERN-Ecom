@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { RequirePermission } from './components/RequirePermission';
+import { BrandBridge } from './components/BrandBridge';
 import { Sidebar } from './components/Sidebar';
 import { api } from './lib/api';
 import { useSession } from './lib/session';
@@ -123,6 +124,8 @@ const Shell = () => {
 
   return (
     <div className={`shell${isRail ? ' is-rail' : ''}`}>
+      {/* Inside the signed-in shell: the settings endpoint needs a token. */}
+      <BrandBridge />
       <div className="mobile-bar">
         <button
           type="button"

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { OrderView, PaymentStatus } from '@shop/shared';
 
+import { DataTable, type Column } from '../components/DataTable';
 import { Badge, Dialog, Empty, Field, Loading, Pager } from '../components/ui';
 import { api, query } from '../lib/api';
 import { formatDate, formatMoney } from '../lib/format';
@@ -38,6 +39,83 @@ const TABS: Array<{ value: PaymentStatus; label: string }> = [
   { value: 'failed', label: 'Expired' },
   { value: 'pending', label: 'Cash on delivery' },
   { value: 'refunded', label: 'Refunded' },
+];
+
+/**
+ * A payment row.
+ *
+ * The reference the shopper quoted is a required column, not an optional one:
+ * it is the entire reason somebody opens this screen, and a queue that hides it
+ * makes you open every row to find the one you are looking at on a statement.
+ */
+const PAYMENT_COLUMNS = (onOpen: (order: OrderView) => void): Column<OrderView>[] => [
+  {
+    key: 'reference',
+    header: 'Order',
+    required: true,
+    render: (order) => <span className="mono">{order.reference}</span>,
+  },
+  {
+    key: 'claimed',
+    header: 'Said they paid',
+    render: (order) => (
+      <span className="nowrap">
+        {order.payment.claimedAt ? formatDate(order.payment.claimedAt) : '—'}
+      </span>
+    ),
+  },
+  {
+    key: 'shopper',
+    header: 'Shopper says',
+    required: true,
+    render: (order) => <span className="mono">{order.payment.reference ?? '—'}</span>,
+  },
+  {
+    key: 'method',
+    header: 'Method',
+    optional: true,
+    render: (order) => (
+      <span className="muted">
+        {METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod}
+      </span>
+    ),
+  },
+  {
+    key: 'buyer',
+    header: 'Buyer',
+    optional: true,
+    render: (order) => order.shippingAddress.fullName,
+  },
+  {
+    key: 'attempts',
+    header: 'Tries',
+    numeric: true,
+    optional: true,
+    render: (order) => order.payment.claimCount || '—',
+  },
+  {
+    key: 'status',
+    header: 'Payment',
+    render: (order) => <Badge value={order.paymentStatus} />,
+  },
+  {
+    key: 'amount',
+    header: 'Amount',
+    numeric: true,
+    required: true,
+    render: (order) => formatMoney(order.totals.grandTotal),
+  },
+  {
+    key: 'open',
+    header: '',
+    tight: true,
+    required: true,
+    render: (order) => (
+      <button type="button" className="btn btn-sm" onClick={() => onOpen(order)}>
+        Open
+      </button>
+    ),
+  },
 ];
 
 export const PaymentsPage = () => {
@@ -145,47 +223,19 @@ export const PaymentsPage = () => {
             <Loading />
           ) : data && data.items.length > 0 ? (
             <>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Reference</th>
-                      <th>Placed</th>
-                      <th>Method</th>
-                      <th>Shopper says</th>
-                      <th>Payment</th>
-                      <th className="num">Amount</th>
-                      <th className="tight" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.items.map((order) => (
-                      <tr key={order.id}>
-                        <td className="mono">{order.reference}</td>
-                        <td>{formatDate(order.placedAt)}</td>
-                        <td>{order.paymentMethod}</td>
-                        <td className="mono">{order.payment.reference ?? '—'}</td>
-                        <td>
-                          <Badge value={order.paymentStatus} />
-                        </td>
-                        <td className="num">{formatMoney(order.totals.grandTotal)}</td>
-                        <td className="tight">
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => {
-                              setOpen(order);
-                              setReason('');
-                            }}
-                          >
-                            Open
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                rows={data.items}
+                rowKey={(order) => order.id}
+                storageKey="threadline.admin.columns.payments"
+                onRowClick={(order) => {
+                  setOpen(order);
+                  setReason('');
+                }}
+                columns={PAYMENT_COLUMNS((order) => {
+                  setOpen(order);
+                  setReason('');
+                })}
+              />
               <Pager
                 page={data.page}
                 pageCount={data.pageCount}

@@ -48,7 +48,7 @@ You need MongoDB running locally (`brew services start mongodb-community`) or an
 | `npm run lint` | ESLint over the workspace |
 | `npm run build` | Server bundle + both client builds |
 | `npm run smoke` | 384 end-to-end checks against a live, seeded server |
-| `npm run smoke:ui` | 61 checks that drive the admin in a real browser |
+| `npm run smoke:ui` | 74 checks that drive the admin in a real browser |
 
 ---
 
